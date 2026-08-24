@@ -7,7 +7,7 @@
 // @ref LLP 0009#pr-health-reconciler [implements] — the rung ladder + one-rung-per-tick
 import { ADOPT_LABEL, ADOPTED_LABEL, DEFAULT_REVIEW_ROUNDS, STUCK_LABEL } from './config.js'
 
-/** @import { PrObservation, PrComment, ReviewRecord, RungDecision } from './types.d.ts' */
+/** @import { PrObservation, PrComment, ReviewRecord, RungDecision, ShipRiskConfig, ShipRiskLevel, ShipRiskRecord, ShipRiskThreshold } from './types.d.ts' */
 
 // `<!-- neutral-review: <headSha> <clean|findings> -->` — one review ROUND. The record
 // is a marker-signed COMMENT (LLP 0028): the comment is the round — no comment, no
@@ -19,6 +19,12 @@ import { ADOPT_LABEL, ADOPTED_LABEL, DEFAULT_REVIEW_ROUNDS, STUCK_LABEL } from '
 // @ref LLP 0028 [implements] — the review record is a marker-signed comment
 // @ref LLP 0029 [implements] — verdict-carrying rounds; a blocked round still counts
 const REVIEW_MARKER_RE = /<!--\s*neutral-review:\s*([0-9a-f]{7,40})(?:\s+(clean|findings))?\s*-->/gi
+
+// `<!-- neutral-ship-risk: <headSha> <level> e<1-5> v1 -->` — the independent final-head
+// shadow assessment (LLP 0062). Only v1 is accepted: a future schema must be an
+// explicit parser change, never silently read with old semantics.
+// @ref LLP 0062#assessment-record [implements]
+const SHIP_RISK_MARKER_RE = /<!--\s*neutral-ship-risk:\s*([0-9a-f]{7,40})\s+(low|medium|high|unknown)\s+e([1-5])\s+v1\s*-->/gi
 
 // `<!-- neutral-triage: <headSha> #M -->` — the head at which the review fix-loop hit
 // `maxReviewRounds` and the residual findings were judged non-blocking and DEFERRED to
@@ -87,6 +93,34 @@ export function reviewRounds(body, comments) {
 }
 
 /**
+ * Ship-risk records in one text, in document order.
+ * @param {string} text
+ * @returns {ShipRiskRecord[]}
+ */
+export function parseShipRiskMarkers(text) {
+  /** @type {ShipRiskRecord[]} */
+  const records = []
+  for (const m of String(text || '').matchAll(SHIP_RISK_MARKER_RE)) {
+    records.push({ sha: m[1].toLowerCase(), level: /** @type {ShipRiskLevel} */ (m[2]), evidence: Number(m[3]), version: 1 })
+  }
+  return records
+}
+
+/**
+ * Every marker-signed ship-risk comment in thread order.
+ * @param {PrComment[]} comments
+ * @returns {ShipRiskRecord[]}
+ */
+export function shipRiskRecords(comments) {
+  /** @type {ShipRiskRecord[]} */
+  const records = []
+  for (const c of Array.isArray(comments) ? comments : []) {
+    records.push(...parseShipRiskMarkers(c && c.body || ''))
+  }
+  return records
+}
+
+/**
  * Two SHAs name the same commit, tolerating abbreviation (a marker may store an
  * abbreviated SHA while `headRefOid` is full-length).
  * @param {string} a
@@ -97,6 +131,33 @@ function shaEq(a, b) {
   if (!a || !b) return false
   const x = a.toLowerCase(), y = b.toLowerCase()
   return x === y || x.startsWith(y) || y.startsWith(x)
+}
+
+/**
+ * The latest ship-risk record iff it covers the current head. A push makes every
+ * prior record stale; a later reassessment at the same head supersedes the former.
+ * @param {PrComment[]} comments
+ * @param {string} headSha
+ * @returns {ShipRiskRecord | null}
+ */
+export function shipRiskAtHead(comments, headSha) {
+  const records = shipRiskRecords(comments)
+  if (!records.length || !headSha) return null
+  const last = records[records.length - 1]
+  return shaEq(last.sha, headSha) ? last : null
+}
+
+/**
+ * Pure prospective policy decision. Unknown is fail-closed at every threshold.
+ * @param {ShipRiskLevel} level
+ * @param {ShipRiskThreshold} maxAutomerge
+ * @param {number} evidence
+ * @returns {boolean}
+ */
+export function shipRiskEligible(level, maxAutomerge, evidence) {
+  if (level === 'unknown' || maxAutomerge === 'none' || evidence < 4) return false
+  const rank = { low: 1, medium: 2, high: 3 }
+  return rank[level] <= rank[maxAutomerge]
 }
 
 /**
@@ -351,10 +412,11 @@ export function rollupConclusion(rollup) {
  * @param {number} [maxReviewRounds]
  * @param {boolean} [automerge]  opt-in (LLP 0019): terminal = merge, not hold
  * @param {boolean} [mergeQueue] opt-in (LLP 0060): queue owns base freshness + landing
+ * @param {ShipRiskConfig} [shipRisk] final-head shadow policy (LLP 0062)
  * @returns {RungDecision}
  * @ref LLP 0009#pr-health-reconciler [implements]
  */
-export function selectRung(pr, maxReviewRounds = DEFAULT_REVIEW_ROUNDS, automerge = false, mergeQueue = false) {
+export function selectRung(pr, maxReviewRounds = DEFAULT_REVIEW_ROUNDS, automerge = false, mergeQueue = false, shipRisk = { mode: 'off', maxAutomerge: 'low' }) {
   // Held for a human — wins over every rung. neutral sets `neutral:stuck` when it
   // cannot auto-advance a PR (an unresolved review finding, a design decision it
   // will not guess at, a conflict it backed off). The label is the authorization
@@ -430,14 +492,43 @@ export function selectRung(pr, maxReviewRounds = DEFAULT_REVIEW_ROUNDS, automerg
     return { rung: 'reviewed', action: 'review', reason: 'head not yet reviewed — run the review, fix findings, post the marker-signed review record comment' }
   }
 
+  // Final-head ship-risk SHADOW gate (LLP 0062). `neutral:approved` means the
+  // reviewed-clean predicate above already holds, so assessment carries approved:true.
+  // Observation mode always holds: it reports the prospective policy decision but
+  // grants no merge authority. A head move invalidates the record through the same
+  // SHA predicate as review.
+  // @ref LLP 0062#reconciler-behavior [implements]
+  if (shipRisk.mode === 'observe') {
+    const assessment = shipRiskAtHead(pr.comments || [], pr.headSha)
+    if (!assessment) {
+      return {
+        rung: 'ship-risk', action: 'assess-ship-risk', approved: true,
+        reason: `reviewed-clean head has no ship-risk v1 record — assess exact head; shadow threshold=${shipRisk.maxAutomerge}`
+      }
+    }
+    const eligible = shipRiskEligible(assessment.level, shipRisk.maxAutomerge, assessment.evidence)
+    const wouldAutomerge = automerge && eligible
+    const disposition = wouldAutomerge
+      ? 'would automerge under configured authority + threshold'
+      : eligible
+        ? 'risk-eligible, but automerge authority is off'
+        : `would hold above threshold=${shipRisk.maxAutomerge}`
+    return {
+      rung: 'terminal', action: pr.isDraft ? 'ready-hold' : 'held', approved: true,
+      shipRisk: assessment.level, shipRiskEvidence: assessment.evidence,
+      shipRiskEligible: eligible, wouldAutomerge,
+      reason: `ship risk ${assessment.level} e${assessment.evidence} — ${disposition}; observation mode always HOLDs`
+    }
+  }
+
   // Terminal — mergeable ∧ green ∧ reviewed: hold for a human, never merge —
   // unless the repo owner moved that boundary. Automerge changes only this rung:
   // every gate above (fresh-head green, fresh-head review, the stuck override)
   // was already satisfied to get here.
   // @ref LLP 0019 [implements] — opt-in automerge relaxes the hold, never the gates
   //
-  // `approved: true` marks this own PR's reviewed-clean terminal (mergeable ∧ green ∧ reviewed,
-  // not stuck — the stuck and foreign branches returned above). The skill syncs the
+  // `approved: true` marks this own PR's reviewed-clean tail (mergeable ∧ green ∧ reviewed,
+  // not stuck — including LLP 0062's later assessment/hold). The skill syncs the
   // `neutral:approved` label to this field each tick, so the label is added here and stripped
   // the moment the PR leaves this terminal (any heal/review/stuck rung omits the field).
   // @ref LLP 0030 [implements] — head-accurate neutral:approved on own PRs

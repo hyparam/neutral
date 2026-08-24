@@ -41,6 +41,10 @@ file → defaults. Tracked (not gitignored). Fields:
 > adds `maxActiveWork` (default `4`) for bounded intake and `mergeQueue` (default
 > `false`) for queue-owned freshness and landing.
 
+> **Extended-by [LLP 0062](0062-ship-risk-shadow-gate.spec.md):** adds the
+> `shipRisk.mode` shadow-gate switch and configurable `shipRisk.maxAutomerge`
+> threshold.
+
 ## Baseline
 
 `.neutral/baseline.json` (tracked) lists request LLPs that already existed / were

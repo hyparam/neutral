@@ -42,6 +42,11 @@ flips a draft ready (`gh pr ready`) and **squash-merges** it (`gh pr merge
 > `mergeQueue: true` changes this landing strategy from direct `merge` to `enqueue`;
 > `automerge` remains the explicit authority to take either terminal action.
 
+> **Extended-by [LLP 0062](0062-ship-risk-shadow-gate.spec.md):** ship-risk
+> observation temporarily shadows that authority: it records whether the configured
+> risk policy would merge the final head, but always holds until a later request
+> explicitly enables enforcement.
+
 Everything upstream of the terminal rung is unchanged — automerge **relaxes the
 hold, never the gates**:
 

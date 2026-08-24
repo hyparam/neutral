@@ -37,7 +37,8 @@ function heldView(number, head) {
   return {
     number, headRefName: head, baseRefName: 'main', isDraft: false,
     mergeable: 'MERGEABLE', mergeStateStatus: 'CLEAN', statusCheckRollup: [],
-    headRefOid: 'abc1234', body: '<!-- neutral-review: abc1234 -->'
+    headRefOid: 'abc1234', body: '<!-- neutral-review: abc1234 -->',
+    comments: [{ author: { login: 'phil' }, body: '<!-- neutral-ship-risk: abc1234 low e4 v1 -->\nproof', createdAt: '1' }]
   }
 }
 

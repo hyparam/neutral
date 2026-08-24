@@ -66,5 +66,9 @@
   "liveStatuses": [
     "accepted",
     "active"
-  ]
+  ],
+  "shipRisk": {
+    "mode": "observe",
+    "maxAutomerge": "low"
+  }
 }

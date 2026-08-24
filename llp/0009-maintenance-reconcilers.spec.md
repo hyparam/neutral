@@ -148,6 +148,10 @@ what, via the change-set DAG, unblocks dependents (LLP 0003).
 > with both `automerge` and `mergeQueue` enabled, the terminal emits `enqueue` and
 > then `wait`s while GitHub reports a `mergeQueueEntry`.
 
+> **Extended-by [LLP 0062](0062-ship-risk-shadow-gate.spec.md):** observation mode
+> inserts a final head-keyed ship-risk assessment after review and always holds,
+> while reporting whether the configured future policy would automerge.
+
 **Reuse.** `reconcilePR` is shared with the pipeline family — the Reviewer
 reconciler (LLP 0000) becomes rung 3 plus the new mergeable/green rungs — so
 neutral's own change-set PRs gain the CI and mergeability self-healing the pipeline

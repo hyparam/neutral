@@ -61,6 +61,11 @@ export const DEFAULT_COOLDOWN_AFTER_REJECT_HOURS = 168
 // as a temporary intake stop. Existing work continues to reconcile at the cap.
 // @ref LLP 0060#admission-control [implements]
 export const DEFAULT_MAX_ACTIVE_WORK = 4
+// Final reviewed-head risk gate (LLP 0062). The first release is deliberately
+// observation-only: classify the exact head, show what policy would do, and hold.
+// @ref LLP 0062#configuration [implements]
+export const DEFAULT_SHIP_RISK_MODE = 'observe'
+export const DEFAULT_MAX_AUTOMERGE_SHIP_RISK = 'low'
 
 /** @type {NeutralConfig} */
 export const DEFAULT_CONFIG = {
@@ -102,6 +107,13 @@ export const DEFAULT_CONFIG = {
   // check; Neutral stops pushing target merges into every BEHIND branch.
   // @ref LLP 0060#merge-queue [implements]
   mergeQueue: false,
+  // Shadow policy over the final reviewed head. `observe` never lands a PR; it
+  // records the assessment and exposes the prospective threshold decision.
+  // @ref LLP 0062#configuration [implements]
+  shipRisk: {
+    mode: DEFAULT_SHIP_RISK_MODE,
+    maxAutomerge: DEFAULT_MAX_AUTOMERGE_SHIP_RISK
+  },
   // Maximum non-frozen work surfaces (open PRs, unshipped change sets and active
   // fix branches). At capacity, only new intake pauses; existing surfaces heal.
   // @ref LLP 0060#admission-control [implements]
@@ -131,6 +143,7 @@ function merge(base, over) {
   const o = over && typeof over === 'object' ? over : {}
   const code = o.code && typeof o.code === 'object' ? o.code : {}
   const roles = o.roles && typeof o.roles === 'object' ? o.roles : {}
+  const shipRisk = o.shipRisk && typeof o.shipRisk === 'object' ? o.shipRisk : {}
   return {
     llpDir: o.llpDir || base.llpDir,
     code: {
@@ -147,6 +160,12 @@ function merge(base, over) {
       : base.maxReviewRounds,
     automerge: typeof o.automerge === 'boolean' ? o.automerge : base.automerge,
     mergeQueue: typeof o.mergeQueue === 'boolean' ? o.mergeQueue : base.mergeQueue,
+    shipRisk: {
+      mode: ['off', 'observe'].includes(shipRisk.mode) ? shipRisk.mode : base.shipRisk.mode,
+      maxAutomerge: ['none', 'low', 'medium', 'high'].includes(shipRisk.maxAutomerge)
+        ? shipRisk.maxAutomerge
+        : base.shipRisk.maxAutomerge
+    },
     maxActiveWork: Number.isInteger(o.maxActiveWork) && o.maxActiveWork >= 0
       ? o.maxActiveWork
       : base.maxActiveWork,

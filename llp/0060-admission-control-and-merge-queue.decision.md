@@ -75,6 +75,10 @@ GitHub adds the exact head to the queue and validates the synthesized merge grou
 > queue exposed `gh pr merge` falling back to disabled auto-merge. The executor is
 > now `neutral enqueue`, backed by GraphQL `enqueuePullRequest` with `expectedHeadOid`.
 
+> **Extended-by [LLP 0062](0062-ship-risk-shadow-gate.spec.md):** ship-risk
+> observation always holds before a new enqueue; an entry already owned by GitHub
+> remains a queue `wait`.
+
 Queue membership is read from the Pull Request GraphQL `mergeQueueEntry` field.
 While an entry exists, the classifier returns `wait` with `approved: true`; it does
 not re-enqueue, merge the target into the branch, or repeat review. If GitHub drops

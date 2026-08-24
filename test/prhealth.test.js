@@ -6,7 +6,8 @@ import {
   parseReviewMarkers, reviewRecords, reviewRounds, reviewedAtHead,
   parseTriageMarkers, triagedAtHead,
   parseVerdictMarkers, verdictAtHead, needsAdoptedLabel,
-  latestStuckReport, isHumanComment, humanRepliesAfterStuckReport, grantedReviewRounds
+  latestStuckReport, isHumanComment, humanRepliesAfterStuckReport, grantedReviewRounds,
+  parseShipRiskMarkers, shipRiskRecords, shipRiskAtHead, shipRiskEligible
 } from '../src/prhealth.js'
 
 /**
@@ -81,6 +82,58 @@ test('reviewedAtHead: the latest record must cover head AND be clean (LLP 0029)'
   const findings = [{ author: 'phil', body: '<!-- neutral-review: beef999 findings -->\nblocker at y.js:9', createdAt: '1' }]
   assert.equal(reviewedAtHead('', clean, 'beef999'), true)
   assert.equal(reviewedAtHead('', findings, 'beef999'), false)
+})
+
+test('ship-risk records are versioned, thread-ordered, and head-keyed (LLP 0062)', () => {
+  assert.deepEqual(
+    parseShipRiskMarkers('<!-- neutral-ship-risk: abc1234 low e4 v1 -->\n<!-- neutral-ship-risk: beef999 unknown e2 v1 -->'),
+    [
+      { sha: 'abc1234', level: 'low', evidence: 4, version: 1 },
+      { sha: 'beef999', level: 'unknown', evidence: 2, version: 1 }
+    ]
+  )
+  assert.deepEqual(parseShipRiskMarkers('<!-- neutral-ship-risk: abc1234 low e4 v2 -->'), [])
+  const comments = [
+    { author: 'phil', body: '<!-- neutral-ship-risk: abc1234 low e4 v1 -->', createdAt: '1' },
+    { author: 'phil', body: '<!-- neutral-ship-risk: abc1234 medium e5 v1 -->', createdAt: '2' }
+  ]
+  assert.equal(shipRiskRecords(comments).length, 2)
+  assert.equal(shipRiskAtHead(comments, 'abc12340000000000000000000000000000000000')?.level, 'medium')
+  assert.equal(shipRiskAtHead(comments, 'new9999'), null)
+})
+
+test('ship-risk threshold is ordered and unknown always fails closed (LLP 0062)', () => {
+  assert.equal(shipRiskEligible('low', 'low', 4), true)
+  assert.equal(shipRiskEligible('medium', 'low', 5), false)
+  assert.equal(shipRiskEligible('medium', 'medium', 4), true)
+  assert.equal(shipRiskEligible('high', 'high', 4), true)
+  assert.equal(shipRiskEligible('low', 'none', 5), false)
+  assert.equal(shipRiskEligible('unknown', 'high', 5), false)
+  assert.equal(shipRiskEligible('low', 'low', 3), false)
+})
+
+test('ship-risk observation assesses once, then reports eligibility and always holds (LLP 0062)', () => {
+  const body = '<!-- neutral-review: abc1234 -->'
+  /** @type {import('../src/types.d.ts').ShipRiskConfig} */
+  const observeLow = { mode: 'observe', maxAutomerge: 'low' }
+  const missing = selectRung(pr({ headSha: 'abc1234', body, isDraft: false }), 2, true, false, observeLow)
+  assert.equal(missing.rung, 'ship-risk')
+  assert.equal(missing.action, 'assess-ship-risk')
+  assert.equal(missing.approved, true)
+
+  const low = [{ author: 'phil', body: '<!-- neutral-ship-risk: abc1234 low e4 v1 -->\nproof', createdAt: '1' }]
+  const eligible = selectRung(pr({ headSha: 'abc1234', body, comments: low, isDraft: false }), 2, true, false, observeLow)
+  assert.equal(eligible.action, 'held')
+  assert.equal(eligible.shipRisk, 'low')
+  assert.equal(eligible.shipRiskEvidence, 4)
+  assert.equal(eligible.shipRiskEligible, true)
+  assert.equal(eligible.wouldAutomerge, true)
+
+  const medium = [{ author: 'phil', body: '<!-- neutral-ship-risk: abc1234 medium e4 v1 -->\nproof', createdAt: '1' }]
+  const held = selectRung(pr({ headSha: 'abc1234', body, comments: medium, isDraft: true }), 2, true, true, observeLow)
+  assert.equal(held.action, 'ready-hold')
+  assert.equal(held.shipRiskEligible, false)
+  assert.equal(held.wouldAutomerge, false)
 })
 
 test('selectRung: an unfixable head reaches triage at the cap instead of re-reviewing forever (LLP 0029)', () => {

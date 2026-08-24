@@ -69,6 +69,23 @@ test('loadConfig accepts a boolean automerge, else keeps the default (off)', () 
   }
 })
 
+test('loadConfig accepts the ship-risk shadow mode and prospective automerge threshold (LLP 0062)', () => {
+  const repo = mkdtempSync(join(tmpdir(), 'neutral-cfg-'))
+  try {
+    assert.deepEqual(DEFAULT_CONFIG.shipRisk, { mode: 'observe', maxAutomerge: 'low' })
+    mkdirSync(join(repo, '.neutral'))
+    const path = join(repo, '.neutral', 'config.json')
+    writeFileSync(path, JSON.stringify({ shipRisk: { mode: 'off', maxAutomerge: 'medium' } }))
+    assert.deepEqual(loadConfig(repo).shipRisk, { mode: 'off', maxAutomerge: 'medium' })
+    writeFileSync(path, JSON.stringify({ shipRisk: { mode: 'enforce', maxAutomerge: 'unknown' } }))
+    assert.deepEqual(loadConfig(repo).shipRisk, DEFAULT_CONFIG.shipRisk) // enforcement is deliberately not admitted yet
+    writeFileSync(path, JSON.stringify({ shipRisk: { maxAutomerge: 'none' } }))
+    assert.deepEqual(loadConfig(repo).shipRisk, { mode: 'observe', maxAutomerge: 'none' })
+  } finally {
+    rmSync(repo, { recursive: true, force: true })
+  }
+})
+
 test('loadConfig accepts mergeQueue and a non-negative maxActiveWork (LLP 0060)', () => {
   const repo = mkdtempSync(join(tmpdir(), 'neutral-cfg-'))
   try {

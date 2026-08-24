@@ -4,7 +4,11 @@ export {
   readLlps, parseLlp, normalizeStatus,
   isRequestType, isDesignType, isLive, needsCoverage, isNeutralDesign
 } from './llp.js'
-export { DEFAULT_CONFIG, loadConfig, FIX_LABEL, STUCK_LABEL, DEFAULT_REVIEW_ROUNDS, DEFAULT_CONTEXT_THRESHOLD, DEFAULT_MAX_ACTIVE_WORK } from './config.js'
+export {
+  DEFAULT_CONFIG, loadConfig, FIX_LABEL, STUCK_LABEL, DEFAULT_REVIEW_ROUNDS,
+  DEFAULT_CONTEXT_THRESHOLD, DEFAULT_MAX_ACTIVE_WORK, DEFAULT_SHIP_RISK_MODE,
+  DEFAULT_MAX_AUTOMERGE_SHIP_RISK
+} from './config.js'
 export { loadBaseline } from './baseline.js'
 export { extractRefs, readCodeRefs } from './refs.js'
 export { coverage } from './coverage.js'
@@ -21,7 +25,8 @@ export { listOpenPRs, viewPR, normalizePR, isPRQueued, listLabelledIssues, listO
 export {
   selectRung, classifyMergeable, rollupConclusion,
   parseReviewMarkers, reviewRecords, reviewRounds, reviewedAtHead,
-  parseTriageMarkers, triagedAtHead
+  parseTriageMarkers, triagedAtHead,
+  parseShipRiskMarkers, shipRiskRecords, shipRiskAtHead, shipRiskEligible
 } from './prhealth.js'
 export { fixBranchName, fixedIssueNumbers, classifyIssue } from './issuefix.js'
 export { idleState } from './idle.js'

@@ -80,13 +80,13 @@ test('collectPRs adopts a pushable neutral:adopt PR as its OWN — foreign: fals
   assert.deepEqual(got.map(p => [p.number, p.foreign, p.adopted, p.canPush, p.action]), [[4, false, true, true, 'review']])
 })
 
-test('an adopted PR rides the own ladder to the terminal — automerge merges it (LLP 0058/0019)', async () => {
-  // reviewed-clean adopted PR in an automerge repo: own terminal, so `merge` — the adopt
-  // label authorized the landing; the verdict-label terminal is review-only's now
+test('an adopted PR rides the own ladder through ship-risk shadow observation (LLP 0058/0062)', async () => {
+  // A pushable adoption is own, so its reviewed-clean final head receives the same
+  // ship-risk assessment and prospective policy decision as an integration PR.
   const exec = fakeWorld({
     prs: [{ number: 9, headRefName: 'contrib/patch', labels: [{ name: 'neutral:adopt' }, { name: 'neutral:adopted' }] }],
     views: {
-      9: { number: 9, headRefName: 'contrib/patch', baseRefName: 'main', isDraft: false, mergeable: 'MERGEABLE', mergeStateStatus: 'CLEAN', statusCheckRollup: [], headRefOid: 'abc1234', body: '<!-- neutral-review: abc1234 -->', labels: [{ name: 'neutral:adopt' }, { name: 'neutral:adopted' }], isCrossRepository: true, maintainerCanModify: true }
+      9: { number: 9, headRefName: 'contrib/patch', baseRefName: 'main', isDraft: false, mergeable: 'MERGEABLE', mergeStateStatus: 'CLEAN', statusCheckRollup: [], headRefOid: 'abc1234', body: '<!-- neutral-review: abc1234 -->', comments: [{ author: { login: 'phil' }, body: '<!-- neutral-ship-risk: abc1234 low e4 v1 -->\nproof', createdAt: '1' }], labels: [{ name: 'neutral:adopt' }, { name: 'neutral:adopted' }], isCrossRepository: true, maintainerCanModify: true }
     }
   })
   const repo = mkdtempSync(join(tmpdir(), 'neutral-prs-'))
@@ -95,7 +95,10 @@ test('an adopted PR rides the own ladder to the terminal — automerge merges it
     assert.deepEqual((await collectPRs(repo, exec)).map(p => [p.number, p.foreign, p.adopted, p.action]), [[9, false, true, 'held']])
     mkdirSync(join(repo, '.neutral'))
     writeFileSync(join(repo, '.neutral', 'config.json'), JSON.stringify({ automerge: true }))
-    assert.deepEqual((await collectPRs(repo, exec)).map(p => [p.number, p.action]), [[9, 'merge']])
+    const [shadow] = await collectPRs(repo, exec)
+    assert.equal(shadow.action, 'held')
+    assert.equal(shadow.shipRiskEligible, true)
+    assert.equal(shadow.wouldAutomerge, true)
   } finally {
     rmSync(repo, { recursive: true, force: true })
   }
@@ -110,7 +113,7 @@ test('collectPRs queue mode ignores BEHIND, enqueues a clean terminal, then wait
   const repo = mkdtempSync(join(tmpdir(), 'neutral-prs-'))
   try {
     mkdirSync(join(repo, '.neutral'))
-    writeFileSync(join(repo, '.neutral', 'config.json'), JSON.stringify({ automerge: true, mergeQueue: true }))
+    writeFileSync(join(repo, '.neutral', 'config.json'), JSON.stringify({ automerge: true, mergeQueue: true, shipRisk: { mode: 'off' } }))
     const open = fakeWorld({ prs: [{ number: 1, headRefName: 'integration/auth' }], views: { 1: base } })
     assert.equal((await collectPRs(repo, open))[0].action, 'enqueue')
     const queued = fakeWorld({ prs: [{ number: 1, headRefName: 'integration/auth' }], views: { 1: base }, queuedIds: ['PR_1'] })
@@ -255,7 +258,7 @@ test('collectPRs scopes an autophagy/ head as own, but exempts it from automerge
   const repo = mkdtempSync(join(tmpdir(), 'neutral-prs-'))
   try {
     mkdirSync(join(repo, '.neutral'))
-    writeFileSync(join(repo, '.neutral', 'config.json'), JSON.stringify({ automerge: true }))
+    writeFileSync(join(repo, '.neutral', 'config.json'), JSON.stringify({ automerge: true, shipRisk: { mode: 'off' } }))
     const got = await collectPRs(repo, exec)
     assert.deepEqual(got.map(p => [p.number, p.foreign, p.action]), [
       [1, false, 'merge'],

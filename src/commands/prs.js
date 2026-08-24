@@ -34,15 +34,15 @@ const OWN_HEAD_RE = /^(integration\/|fix\/issue-|autophagy\/)/
  * not completion, is what the label records.
  * @param {string} repo
  * @param {typeof run} [exec]
- * @returns {Promise<Array<{number: number, head: string, base: string, isDraft: boolean, headSha: string, foreign: boolean, reviewOnly: boolean, adopted: boolean, canPush: boolean, stuck: boolean, queued: boolean, guidance: number, markAdopted: boolean, rung: string, action: string, reason: string, approved?: boolean}>>}
+ * @returns {Promise<Array<{number: number, head: string, base: string, isDraft: boolean, headSha: string, foreign: boolean, reviewOnly: boolean, adopted: boolean, canPush: boolean, stuck: boolean, queued: boolean, guidance: number, markAdopted: boolean, rung: string, action: string, reason: string, approved?: boolean, shipRisk?: string, shipRiskEvidence?: number, shipRiskEligible?: boolean, wouldAutomerge?: boolean}>>}
  */
 export async function collectPRs(repo, exec = run) {
-  const { maxReviewRounds, automerge, mergeQueue } = loadConfig(repo)
+  const { maxReviewRounds, automerge, mergeQueue, shipRisk } = loadConfig(repo)
   const open = await listOpenPRs(repo, exec)
   // Own by head-branch ownership; delegated only when a maintainer explicitly labelled it —
   // `neutral:adopt` for full heal (LLP 0025) or `neutral:review` for review-only (LLP 0032).
   const inScope = open.filter(p => OWN_HEAD_RE.test(p.headRefName) || p.labels.includes(ADOPT_LABEL) || p.labels.includes(REVIEW_LABEL))
-  /** @type {Array<{number: number, head: string, base: string, isDraft: boolean, headSha: string, foreign: boolean, reviewOnly: boolean, adopted: boolean, canPush: boolean, stuck: boolean, queued: boolean, guidance: number, markAdopted: boolean, rung: string, action: string, reason: string, approved?: boolean}>} */
+  /** @type {Array<{number: number, head: string, base: string, isDraft: boolean, headSha: string, foreign: boolean, reviewOnly: boolean, adopted: boolean, canPush: boolean, stuck: boolean, queued: boolean, guidance: number, markAdopted: boolean, rung: string, action: string, reason: string, approved?: boolean, shipRisk?: string, shipRiskEvidence?: number, shipRiskEligible?: boolean, wouldAutomerge?: boolean}>} */
   const out = []
   for (const p of inScope) {
     const obs = await viewPR(repo, p.number, exec)
@@ -63,8 +63,12 @@ export async function collectPRs(repo, exec = run) {
     // autophagy cleanup PR is held for a human even in an automerge repo.
     // @ref LLP 0036#no-automerge [implements]
     const merge = automerge && !obs.head.startsWith(AUTOPHAGY_PREFIX)
+    // Autophagy proposals are permanently human-held (LLP 0036), so a prospective
+    // automerge assessment would be a false candidate. Keep their terminal unchanged.
+    /** @type {import('../types.d.ts').ShipRiskConfig} */
+    const riskPolicy = obs.head.startsWith(AUTOPHAGY_PREFIX) ? { ...shipRisk, mode: 'off' } : shipRisk
     const queued = mergeQueue && !foreign ? await isPRQueued(repo, obs.nodeId || '', exec) : false
-    const decision = selectRung({ ...obs, foreign, reviewOnly, queued }, maxReviewRounds, merge, mergeQueue)
+    const decision = selectRung({ ...obs, foreign, reviewOnly, queued }, maxReviewRounds, merge, mergeQueue, riskPolicy)
     const stuck = obs.labels.includes(STUCK_LABEL)
     const guidance = humanRepliesAfterStuckReport(obs.comments).length
     // Engagement stamp (LLP 0037): observing an adopt-labelled PR IS taking it on, so

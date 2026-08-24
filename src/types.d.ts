@@ -105,6 +105,8 @@ export interface NeutralConfig {
   automerge: boolean
   /** Opt-in (LLP 0060): use GitHub's merge queue for automerge landing and base freshness. */
   mergeQueue: boolean
+  /** Final reviewed-head ship-risk policy (LLP 0062). Observation is a shadow gate: classify and hold. */
+  shipRisk: ShipRiskConfig
   /** Admission cap over non-frozen PR/change-set/fix work surfaces (LLP 0060). */
   maxActiveWork: number
   /** Context-autophagy trigger threshold T, in tokens (LLP 0013). */
@@ -118,6 +120,16 @@ export interface NeutralConfig {
     /** Hours a member backs off after a rejected (closed-unmerged) cleanup PR; defaults longer (LLP 0047). 0 disables. */
     cooldownAfterRejectHours: number
   }
+}
+
+export type ShipRiskLevel = 'low' | 'medium' | 'high' | 'unknown'
+export type ShipRiskThreshold = 'none' | 'low' | 'medium' | 'high'
+
+export interface ShipRiskConfig {
+  /** `observe` runs the shadow gate and always holds; `off` preserves the legacy terminal. */
+  mode: 'off' | 'observe'
+  /** Highest assessed risk the prospective automerge policy would admit. */
+  maxAutomerge: ShipRiskThreshold
 }
 
 export interface World {
@@ -151,6 +163,15 @@ export interface ReviewRecord {
   sha: string
   /** True when the round found nothing actionable. Only a clean record covering the current head satisfies the reviewed rung; a `findings` record counts the round toward `maxReviewRounds` without satisfying it (LLP 0029). */
   clean: boolean
+}
+
+/** One independent final-head ship-risk assessment recorded in a marker-signed PR comment (LLP 0062). */
+export interface ShipRiskRecord {
+  sha: string
+  level: ShipRiskLevel
+  /** Highest proof level reached for the critical safety fact, 1–5. */
+  evidence: number
+  version: 1
 }
 
 /**
@@ -192,10 +213,10 @@ export interface PrObservation {
 
 /** The single rung action reconcilePR takes on a PR this tick (LLP 0009). */
 export interface RungDecision {
-  /** mergeable | green | reviewed | terminal. */
+  /** mergeable | green | reviewed | ship-risk | terminal. */
   rung: string
   /**
-   * wait | merge-base | resolve-conflict | fix-ci | review | triage | ready-hold | merge | enqueue |
+   * wait | merge-base | resolve-conflict | fix-ci | review | triage | assess-ship-risk | ready-hold | merge | enqueue |
    * stuck-report | unstick | held | approve | request-changes | mark-adopted.
    * `triage` (review rounds exhausted) is where a blanket `stuck` used to be: the worker
    * judges the residual findings and either defers non-blockers to a `neutral:fix` follow-up
@@ -220,14 +241,23 @@ export interface RungDecision {
   action: string
   reason: string
   /**
-   * Own PRs only (LLP 0030): `true` at the reviewed-clean terminal (mergeable ∧ green ∧
-   * reviewed, not stuck — i.e. `ready-hold` / `held` / `merge`). The skill syncs the
+   * Own PRs only (LLP 0030/0062): `true` throughout the reviewed-clean tail (mergeable ∧
+   * green ∧ reviewed, not stuck — including `assess-ship-risk` and its observation hold).
+   * The skill syncs the
    * `neutral:approved` label to this field each tick: added when `true`, removed otherwise, so
    * the label tracks the current reviewed-clean head and never goes stale. Absent/falsy on
    * every heal/review/stuck/triage rung and on foreign PRs (which use the verdict label via
    * `approve`).
    */
   approved?: boolean
+  /** Current-head ship-risk assessment, present after the shadow gate has a record (LLP 0062). */
+  shipRisk?: ShipRiskLevel
+  /** Highest proof level recorded for the critical safety fact, 1–5. */
+  shipRiskEvidence?: number
+  /** Whether `shipRisk` is within the repo's configured prospective automerge threshold. */
+  shipRiskEligible?: boolean
+  /** Shadow decision: current automerge intent is on and this assessment is eligible. Never an action in observe mode. */
+  wouldAutomerge?: boolean
 }
 
 /** One work surface consuming (or frozen outside) the admission cap (LLP 0060). */

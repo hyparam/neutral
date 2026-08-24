@@ -45,6 +45,11 @@ strips the label until the rebased head is re-reviewed clean and returns to `rea
 > `BEHIND` alone no longer strips approval because GitHub validates freshness in the
 > merge group; a changed head still invalidates the head-keyed review as before.
 
+> **Extended-by [LLP 0062](0062-ship-risk-shadow-gate.spec.md):** the head-keyed
+> ship-risk shadow gate runs after reviewed-clean. `assess-ship-risk` and its
+> observation hold carry `approved: true`; the label continues to mean
+> reviewed-clean, not automerge-eligible.
+
 <a id="no-body-marker"></a>**No body verdict marker for own PRs.** A foreign PR persists its
 verdict in a head-keyed `<!-- neutral-verdict: <sha> -->` body marker for idempotency, because
 neutral cannot push to the fork and must not re-label a settled head. An own PR needs no such
