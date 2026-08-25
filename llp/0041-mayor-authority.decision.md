@@ -23,6 +23,10 @@ mayor only on a human request to *steer*); and relays human replies to stuck
 reports into PR threads. Every relay confirms back in the event's Slack
 thread once submission is verified.
 
+> **Extended-by [LLP 0066](0066-source-grounded-process-answers.spec.md):**
+> questions about how or why Neutral works load a dedicated process skill that
+> reads the shipped LLPs and implementation before the mayor answers.
+
 <a id="identity-principle"></a>**Identity principle: authorship, not
 transport, decides the marker.** Content the human authored — relayed
 verbatim from an allowlisted Slack ID — posts to GitHub **unmarked** (no

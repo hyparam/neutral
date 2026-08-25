@@ -1,7 +1,7 @@
 ---
 name: neutral-mayor
 description: One mayor tick for the neutral-loop container — push the events that wait on a human to Slack, answer unanswered inbound, relay explicit instructions, then recycle-or-schedule (LLPs 0039–0042). Runs as the fourth loop, `/loop /neutral-mayor`, inside the container. Use only there — it assumes the container's shared tmux server, the /work layout, and the Slack env vars.
-allowed-tools: Bash, Read
+allowed-tools: Bash, Read, Skill
 ---
 
 # neutral-mayor
@@ -258,6 +258,12 @@ Then:
 - **A question** → answer from ground truth re-derived *now* — `neutral prs
   --json` / `neutral backlog --json` / `neutral issues --json` in the clones,
   `gh`, transcripts, `tmux capture-pane` — never from memory of a past tick.
+  If the question asks **how or why Neutral works** — its pipeline, reconciler
+  roles, artifacts, state transitions, scheduling, admission, review rungs,
+  authority boundaries, or why an artifact is in a state — call the Skill tool
+  with `neutral-process` before answering. That skill grounds the process rule in
+  the shipped LLPs and implementation; combine it with fresh clone facts for a
+  named artifact. A status-only question does not need it.
   Reply in the same thread; a channel-root question gets its answer as a
   threaded reply on the question message (`thread_ts` = its `ts`), never a
   new channel message, and never `reply_broadcast` — the channel stays

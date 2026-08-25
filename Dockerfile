@@ -55,7 +55,8 @@ RUN mkdir -p /home/neutral/.claude/skills \
   && ln -s /opt/neutral/.claude/skills/ship-risk /home/neutral/.claude/skills/ship-risk \
   && ln -s /opt/neutral/.claude/skills/neutral-init /home/neutral/.claude/skills/neutral-init \
   && ln -s /opt/neutral/.claude/skills/neutral-watchdog /home/neutral/.claude/skills/neutral-watchdog \
-  && ln -s /opt/neutral/.claude/skills/neutral-mayor /home/neutral/.claude/skills/neutral-mayor
+  && ln -s /opt/neutral/.claude/skills/neutral-mayor /home/neutral/.claude/skills/neutral-mayor \
+  && ln -s /opt/neutral/.claude/skills/neutral-process /home/neutral/.claude/skills/neutral-process
 
 # Pre-seed Claude Code's user config so a headless first run never stops at
 # interactive onboarding (theme picker / bypass-permissions confirmation).
