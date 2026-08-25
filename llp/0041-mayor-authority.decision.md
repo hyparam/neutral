@@ -27,6 +27,10 @@ thread once submission is verified.
 > questions about how or why Neutral works load a dedicated process skill that
 > reads the shipped LLPs and implementation before the mayor answers.
 
+> **Extended-by [LLP 0068](0068-mayor-plain-language-and-show-me.spec.md):**
+> mayor answers use short, plain language, and visual explanations load the
+> bundled `show-me` skill.
+
 <a id="identity-principle"></a>**Identity principle: authorship, not
 transport, decides the marker.** Content the human authored — relayed
 verbatim from an allowlisted Slack ID — posts to GitHub **unmarked** (no

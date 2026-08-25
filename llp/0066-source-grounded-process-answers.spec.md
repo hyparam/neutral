@@ -52,6 +52,10 @@ and cite the governing LLP number plus the current implementation surface. A
 question that cannot be resolved from those sources receives an explicit unknown,
 not a plausible reconstruction.
 
+> **Extended-by [LLP 0068](0068-mayor-plain-language-and-show-me.spec.md):**
+> the same grounded answer is rendered in short, plain language, with `show-me`
+> available when a small visual is clearer than prose.
+
 ## Invocation and packaging
 
 `neutral-process` is model-invoked: its description names the process-question

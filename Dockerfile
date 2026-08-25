@@ -50,13 +50,15 @@ USER neutral
 
 # Expose neutral's skills user-level so /neutral-reconcile resolves inside any
 # target repo (same shape as a ~/.claude/skills symlink on a dev machine).
+# @ref LLP 0068#packaging [implements] — make show-me available to the mayor
 RUN mkdir -p /home/neutral/.claude/skills \
   && ln -s /opt/neutral/.claude/skills/neutral-reconcile /home/neutral/.claude/skills/neutral-reconcile \
   && ln -s /opt/neutral/.claude/skills/ship-risk /home/neutral/.claude/skills/ship-risk \
   && ln -s /opt/neutral/.claude/skills/neutral-init /home/neutral/.claude/skills/neutral-init \
   && ln -s /opt/neutral/.claude/skills/neutral-watchdog /home/neutral/.claude/skills/neutral-watchdog \
   && ln -s /opt/neutral/.claude/skills/neutral-mayor /home/neutral/.claude/skills/neutral-mayor \
-  && ln -s /opt/neutral/.claude/skills/neutral-process /home/neutral/.claude/skills/neutral-process
+  && ln -s /opt/neutral/.claude/skills/neutral-process /home/neutral/.claude/skills/neutral-process \
+  && ln -s /opt/neutral/.claude/skills/show-me /home/neutral/.claude/skills/show-me
 
 # Pre-seed Claude Code's user config so a headless first run never stops at
 # interactive onboarding (theme picker / bypass-permissions confirmation).
