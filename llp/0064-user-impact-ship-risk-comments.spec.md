@@ -64,3 +64,8 @@ The Engine continues to parse only that marker, so existing records remain valid
 and no deterministic state-machine change is required. New assessments use this
 short public form. Observation mode still always holds and never merges or
 enqueues.
+
+> **Extended-by [LLP 0065](0065-plain-language-ship-risk-summaries.spec.md):**
+> replaces the 80-word cap with a 120–200 word target and requires ordinary
+> product language organized around who could be affected, what could happen,
+> why the level fits, and what was checked.

@@ -6,14 +6,13 @@ user impact.
 
 ## Levels
 
-- **Low** — no plausible user-visible regression was found, or the possible
-  effect is trivial, narrowly contained, and immediately reversible.
-- **Medium** — a plausible regression could affect a bounded set of users in one
-  feature or workflow, with straightforward recovery.
-- **High** — users could plausibly suffer serious or broad harm: lost access,
-  wrong authorization, security or privacy exposure, data loss or corruption,
-  incompatible client behavior, outage, or an irreversible action.
-- **Unknown** — the path to users or its consequence cannot be established.
+- **Low** — users are unlikely to notice a problem. Any possible effect is small,
+  limited to a few people, and easy to undo.
+- **Medium** — some users could notice a real problem in one part of the product,
+  but their access, data, and privacy remain safe.
+- **High** — many users could be affected, or even one user could lose access,
+  data, privacy, security, or face an action that cannot be undone.
+- **Unknown** — there is not enough evidence to say how users could be affected.
 
 Use the highest applicable level. A sensitive surface is high when the diff can
 change user outcomes on that surface; mere proximity is not enough.
@@ -35,32 +34,45 @@ Keep the full trace, changed-file accounting, commands, and output in `risk.md`.
 
 ## Public comment
 
-Write for a product user. After the marker, use at most 80 words and at most
-three risk-surface bullets. Each bullet names one surface and says who could
-experience what failure under what condition. Use one short evidence sentence;
-command lines, file inventories, code walkthroughs, cleared-risk lists, and
-rationale stay in `risk.md`.
+Write for a product user. Use 120–200 words and at most four user-impact
+bullets. A low result with no plausible user-facing failure may be shorter.
+Describe product behavior in ordinary words: who could notice, what they could
+experience, when it could happen, why that maps to the level, and what was
+checked. Translate implementation details into user experience. Keep file names,
+code symbols, commands, test output, architecture terms, and evidence-level jargon
+in `risk.md`.
 
 ```markdown
 <!-- neutral-ship-risk: <full-head-sha> <level> e<1-5> v1 -->
 ## Ship risk: `<level>`
-**User impact:** <one plain sentence about who could be affected and how>
-- **<surface>:** <precise possible user failure and condition>
-- **<optional second surface>:** <precise possible user failure and condition>
-**Evidence:** <one plain sentence naming the focused check or what is missing>
+**Who could be affected:** <people using the affected product area>
+
+**What could happen:**
+- <plain description of a possible user-visible failure and when it occurs>
+- <optional additional user-visible failure>
+
+**Why this level:** <plain explanation of the likely reach and seriousness>
+
+**What was checked:** <plain summary of the important successful checks or missing proof>
 ```
 
-For low risk with no plausible surface, omit the bullets and say so in the user
-impact sentence. For unknown risk, say exactly which user-impact path or proof is
-missing.
+For low risk with no plausible surface, say that directly instead of inventing
+bullets. For unknown risk, say what could not be checked and why that prevents a
+clear answer.
 
 Example:
 
 ```markdown
 <!-- neutral-ship-risk: 43cd1d28031fd13f2fb9d38a5e8509a9dd736888 medium e4 v1 -->
 ## Ship risk: `medium`
-**User impact:** Session-search users could see missing or misleading paging controls.
-- **Paging state:** A failed request could leave “Load more” hidden.
-- **Search guidance:** Loading could show advice that is not yet true.
-**Evidence:** Focused paging tests passed, including failure paths.
+**Who could be affected:** People searching across many sessions, especially when results arrive in more than one batch.
+
+**What could happen:**
+- While results are loading, “Load more” could disappear even though more results are available.
+- If a request fails, the page could suggest narrowing the search too early.
+- The same behavior appears in both organization search and a single session’s search.
+
+**Why this level:** The problem could make results harder to reach in search, but it would not delete data, reveal private information, or stop other parts of the product. It would be limited to how results are shown, and users could recover by retrying the search.
+
+**What was checked:** Tests covered loading, successful completion, and failed requests. All passed.
 ```

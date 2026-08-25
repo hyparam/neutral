@@ -47,22 +47,24 @@ omit it; resolve the current `headRefOid` once and treat that as expected.
    executable evidence. Put the full trace, file accounting, commands, and
    observed output in `risk.md` before posting.
 7. Immediately re-read the PR head. Post only if it still equals the expected SHA.
-   Draft the public body, count its words and risk-surface bullets, and revise it
-   until it is at most 80 words with at most three bullets. Post exactly one
-   comment whose first line is:
+   Draft the public body in plain product language. Use 120–200 words with at
+   most four user-impact bullets; a low result with no plausible user-facing
+   failure may be shorter. Revise until a reader needs no code or architecture
+   knowledge to understand who could be affected, what they could experience,
+   when it could happen, and what was checked. Post exactly one comment whose
+   first line is:
 
    ```text
    <!-- neutral-ship-risk: <full-head-sha> <low|medium|high|unknown> e<1-5> v1 -->
    ```
 
-   Follow it with only the terse public summary from the reference template. Keep
-   the technical audit in `risk.md`; the PR comment names only the level, possible
-   user effect, precise risk surfaces, and one-line evidence.
+   Follow it with only the plain-language public summary from the reference
+   template. Keep the technical audit in `risk.md`.
 
 ## Completion
 
 Success means the PR thread contains one v1 marker-signed assessment for the exact
-current head, its public body satisfies the short-form limits, and the report file
+current head, its public body is plain and user-focused, and the report file
 contains the same classification and full evidence. Stale-head exit, tool failure,
 or missing proof leaves no optimistic record; if an assessment must still be
 recorded, classify it `unknown` with the observed failure.
