@@ -1,107 +1,66 @@
 # Ship-risk classification
 
-Classify **reach**, **consequence**, and **evidence** separately. The final level is
-the maximum applicable reach or consequence level. Evidence may clear a suspected
-path; it cannot downgrade an inherently high-consequence surface.
+Ship risk is the possibility that this exact change unintentionally affects
+users. Code size and architectural reach matter only when they create a path to
+user impact.
 
-## Reach
+## Levels
 
-- **Low** — one internal module or bounded call path; no external contract,
-  configuration propagation, shared lifecycle, or cross-package invariant.
-- **Medium** — multiple modules or user-visible paths; internal API/configuration
-  behavior; a dependency edge or async lifecycle with bounded ownership.
-- **High** — cross-service or cross-language behavior; public API, serialized/wire
-  format, schema/migration, shared mutable concurrency, build/dependency graph,
-  deployment or infrastructure behavior.
+- **Low** — no plausible user-visible regression was found, or the possible
+  effect is trivial, narrowly contained, and immediately reversible.
+- **Medium** — a plausible regression could affect a bounded set of users in one
+  feature or workflow, with straightforward recovery.
+- **High** — users could plausibly suffer serious or broad harm: lost access,
+  wrong authorization, security or privacy exposure, data loss or corruption,
+  incompatible client behavior, outage, or an irreversible action.
+- **Unknown** — the path to users or its consequence cannot be established.
 
-## Consequence
-
-- **Low** — bounded, reversible incorrect behavior with no security, privacy, data,
-  availability, or operational recovery concern.
-- **Medium** — material user-facing regression, performance regression, or an
-  operational incident requiring deliberate recovery.
-- **High** — authentication/authorization, secrets/privacy, data loss or corruption,
-  irreversible mutation, migration failure, public compatibility break, broad
-  outage, unsafe deployment/infrastructure, or subtle concurrent lifecycle failure.
-
-These are **sensitive surfaces** and therefore at least high unless the diff is
-demonstrably non-behavioral: auth and permissions; secret or personal data;
-database schemas and migrations; destructive/irreversible operations; public,
-wire, or cross-language contracts; package/lockfile/build/CI changes; deployment
-and infrastructure; shared mutable state and background lifecycle management.
+Use the highest applicable level. A sensitive surface is high when the diff can
+change user outcomes on that surface; mere proximity is not enough.
 
 ## Evidence
 
-For every fact on which safety depends, record the highest achieved level:
+Record the highest level reached for the critical safety fact:
 
 1. **Claimed** — prose only.
-2. **Located** — cited implementation or upstream source.
-3. **Traced** — the bad case was followed end-to-end and shown not to reach.
-4. **Executed** — a focused test or script ran the real current-head code and
-   fails loudly if the fact is false.
-5. **Reproduced** — exercised in the running application or realistic integration.
+2. **Located** — implementation or an authoritative source was found.
+3. **Traced** — the path from the change to users was followed end to end.
+4. **Executed** — focused code proved the fact and fails when it is false.
+5. **Reproduced** — the real application or a realistic integration proved it.
 
-The critical safety fact must reach level 4 for `low` or `medium`. Otherwise the
-result is `unknown`, not a rounded-up risk level. A high classification may be
-recorded immediately when a high surface is present, but any future automerge
-eligibility still requires the report to name executable evidence. Search results
-and a green general suite are supporting evidence, not substitutes for the focused
-proof.
+Low and medium require level 4 or 5. Otherwise classify `unknown`. High can be
+recorded as soon as serious or broad user harm is plausible.
 
-## Decision rules
+Keep the full trace, changed-file accounting, commands, and output in `risk.md`.
 
-- **Low** requires low reach, low consequence, no sensitive surface, full changed-
-  file accounting, and level-4-or-better proof of the critical safety fact.
-- **Medium** requires no high surface or consequence, full accounting, and
-  level-4-or-better proof.
-- **High** applies when any high reach, consequence, or sensitive surface applies.
-- **Unknown** applies when the diff, callers, lifecycle, contracts, or proof cannot
-  be completed honestly. Unknown is never automerge-eligible.
+## Public comment
 
-Use confirmed facts, not the number of bullets, diff size, or confidence-flavored
-adjectives. A one-line authorization bypass is high; a large generated snapshot may
-be low only if its generation and consumers are proven.
+Write for a product user. After the marker, use at most 80 words and at most
+three risk-surface bullets. Each bullet names one surface and says who could
+experience what failure under what condition. Use one short evidence sentence;
+command lines, file inventories, code walkthroughs, cleared-risk lists, and
+rationale stay in `risk.md`.
 
-## Comment/report template
-
-````markdown
+```markdown
 <!-- neutral-ship-risk: <full-head-sha> <level> e<1-5> v1 -->
 ## Ship risk: `<level>`
-
-**Head:** `<full-head-sha>`
-**Base:** `<base-ref-or-sha>`
-
-### What changed
-- <behavioral change and non-obvious effect, with file:line>
-
-### Surface
-- **Files accounted for:** <every changed file or grouped generated set>
-- **Callers/contracts/config:** <direct and non-grep edges>
-- **Concurrency/lifecycle:** <classification or “none” with evidence>
-- **Sensitive surfaces:** <list or “none”>
-
-### Critical safety fact
-<one precise falsifiable sentence>
-
-**Evidence level:** <1–5>
-**Proof:** `<command>` → exit `<status>`
-
-```text
-<concise observed output>
+**User impact:** <one plain sentence about who could be affected and how>
+- **<surface>:** <precise possible user failure and condition>
+- **<optional second surface>:** <precise possible user failure and condition>
+**Evidence:** <one plain sentence naming the focused check or what is missing>
 ```
 
-### Confirmed risks
-- <how it breaks, likelihood, consequence, file:line, and detection>
+For low risk with no plausible surface, omit the bullets and say so in the user
+impact sentence. For unknown risk, say exactly which user-impact path or proof is
+missing.
 
-### Cleared
-- <risk investigated, evidence that clears it>
+Example:
 
-### Rationale
-<reach + consequence + evidence → classification; state `unknown` plainly when applicable>
-
-### Before merge
-- <cheapest durable check that catches the real failure>
-````
-
-Use `None found after the checks above` when a section is empty; never omit a
-section or manufacture a concern to fill it.
+```markdown
+<!-- neutral-ship-risk: 43cd1d28031fd13f2fb9d38a5e8509a9dd736888 medium e4 v1 -->
+## Ship risk: `medium`
+**User impact:** Session-search users could see missing or misleading paging controls.
+- **Paging state:** A failed request could leave “Load more” hidden.
+- **Search guidance:** Loading could show advice that is not yet true.
+**Evidence:** Focused paging tests passed, including failure paths.
+```

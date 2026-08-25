@@ -116,3 +116,8 @@ risk but cannot make an inherently high-consequence surface low.
 - A later enforcement request must define rollout evidence, failure behavior,
   queue interaction, and the exact independent check that authorizes landing. It
   must not silently reinterpret `observe`.
+
+> **Extended-by [LLP 0064](0064-user-impact-ship-risk-comments.spec.md):** risk
+> levels are classified by plausible unintended user impact, and the public PR
+> comment is a terse surface summary while the full technical audit remains in
+> the private assessment artifact.

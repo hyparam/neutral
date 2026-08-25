@@ -1,14 +1,14 @@
 ---
 name: ship-risk
-description: Assess whether Neutral could safely ship an exact reviewed PR head without a human, prove the critical safety fact by running real code, classify final-head ship risk as low/medium/high/unknown, and post the marker-signed shadow-gate record. Use for Neutral's `assess-ship-risk` action or a requested final pre-merge ship-risk assessment; this skill observes and records but never merges.
+description: Assess whether an exact reviewed PR head could unintentionally affect users, prove the key safety fact, classify ship risk as low/medium/high/unknown, and post a terse marker-signed shadow record. Use for Neutral's `assess-ship-risk` action or a requested final pre-merge ship-risk assessment; this skill observes and records but never merges.
 allowed-tools: Bash, Read, Write, Grep, Glob
 ---
 
 # ship-risk
 
-Assess the **exact final head**, not the earlier review diff, and leave one
-auditable shadow-gate record. This is an independent observer: inspect and run
-proofs, but do not fix code, push, label, ready, enqueue, or merge the PR.
+Assess the **exact final head** and leave one auditable shadow-gate record. This
+is an independent observer: inspect and run proofs, but do not fix code, push,
+label, ready, enqueue, or merge the PR.
 
 Invocation:
 
@@ -34,29 +34,35 @@ omit it; resolve the current `headRefOid` once and treat that as expected.
    Keep proof scripts and other scratch artifacts beside the report or under a
    temporary directory, never in the tracked tree.
 4. Read [references/classification.md](references/classification.md). Account for
-   every changed file and every applicable sensitive surface. Trace symbols,
-   direct callers, configuration/contracts, dependencies, and concurrent
-   lifecycles far enough to identify the **critical safety fact**: the one fact on
-   which unattended landing depends.
+   every changed file privately. Trace callers, contracts, configuration,
+   dependencies, and lifecycles far enough to identify the precise surfaces
+   through which this change could unintentionally affect users. Identify the
+   **critical safety fact** on which unattended landing depends.
 5. Prove that fact with the real current-head code. Prefer an existing focused test;
    otherwise run a minimal ephemeral script importing the shipped implementation.
    Record the command, exit status, and concise observed output. A general green
    suite alone is not proof of a specific safety fact.
-6. Classify with the reference rubric. Use `unknown` when inspection is incomplete
-   or the critical fact lacks executable evidence. Write `risk.md` before posting.
+6. Classify from plausible unintended user impact using the reference rubric.
+   Use `unknown` when inspection is incomplete or the critical fact lacks
+   executable evidence. Put the full trace, file accounting, commands, and
+   observed output in `risk.md` before posting.
 7. Immediately re-read the PR head. Post only if it still equals the expected SHA.
-   Post exactly one comment whose first line is:
+   Draft the public body, count its words and risk-surface bullets, and revise it
+   until it is at most 80 words with at most three bullets. Post exactly one
+   comment whose first line is:
 
    ```text
    <!-- neutral-ship-risk: <full-head-sha> <low|medium|high|unknown> e<1-5> v1 -->
    ```
 
-   Follow it with the complete human-readable report from the reference template.
-   Every factual claim cites a real `file:line`, command result, or upstream source.
+   Follow it with only the terse public summary from the reference template. Keep
+   the technical audit in `risk.md`; the PR comment names only the level, possible
+   user effect, precise risk surfaces, and one-line evidence.
 
 ## Completion
 
 Success means the PR thread contains one v1 marker-signed assessment for the exact
-current head and the report file contains the same classification and evidence.
-Stale-head exit, tool failure, or missing proof leaves no optimistic record; if an
-assessment must still be recorded, classify it `unknown` with the observed failure.
+current head, its public body satisfies the short-form limits, and the report file
+contains the same classification and full evidence. Stale-head exit, tool failure,
+or missing proof leaves no optimistic record; if an assessment must still be
+recorded, classify it `unknown` with the observed failure.
