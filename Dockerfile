@@ -52,6 +52,7 @@ USER neutral
 # target repo (same shape as a ~/.claude/skills symlink on a dev machine).
 RUN mkdir -p /home/neutral/.claude/skills \
   && ln -s /opt/neutral/.claude/skills/neutral-reconcile /home/neutral/.claude/skills/neutral-reconcile \
+  && ln -s /opt/neutral/.claude/skills/ship-risk /home/neutral/.claude/skills/ship-risk \
   && ln -s /opt/neutral/.claude/skills/neutral-init /home/neutral/.claude/skills/neutral-init \
   && ln -s /opt/neutral/.claude/skills/neutral-watchdog /home/neutral/.claude/skills/neutral-watchdog \
   && ln -s /opt/neutral/.claude/skills/neutral-mayor /home/neutral/.claude/skills/neutral-mayor
