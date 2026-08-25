@@ -75,12 +75,13 @@ const PLAN = [
  * rev-parse, `tree`/`content` ls-tree + show at a ref, `ancestors`/`firstParent`/
  * `merges` the done-set derivation (see test/git.test.js for the field semantics).
  * `gh repo view` (defaultBranch) fails unless given — the sweep must degrade.
- * @param {{branches?: string[], exist?: string[], shas?: Record<string,string>, ancestors?: Record<string,string[]>, firstParent?: Record<string,string[]>, merges?: Record<string,[string,string,string][]>, tree?: Record<string,string[]>, content?: Record<string,string>, defaultBranch?: string}} cfg
+ * @param {{branches?: string[], exist?: string[], shas?: Record<string,string>, ancestors?: Record<string,string[]>, firstParent?: Record<string,string[]>, merges?: Record<string,[string,string,string][]>, tree?: Record<string,string[]>, content?: Record<string,string>, defaultBranch?: string, mergedPrs?: any[]}} cfg
  * @returns {import('../src/git.js').run}
  */
-function fakeGit({ branches = [], exist = [], shas = {}, ancestors = {}, firstParent = {}, merges = {}, tree = {}, content = {}, defaultBranch } = {}) {
+function fakeGit({ branches = [], exist = [], shas = {}, ancestors = {}, firstParent = {}, merges = {}, tree = {}, content = {}, defaultBranch, mergedPrs = [] } = {}) {
   return async (cmd, args) => {
     if (cmd === 'gh') {
+      if (args[0] === 'pr' && args[1] === 'list') return JSON.stringify(mergedPrs)
       if (defaultBranch !== undefined) return defaultBranch + '\n'
       const e = new Error('no gh'); /** @type {any} */ (e).code = 1; throw e
     }
@@ -216,6 +217,38 @@ test('collectChangeSets: shipped change set (design Active on target) owes nothi
     const [c] = await collectChangeSets(repo, exec)
     assert.equal(c.shipped, true)
     assert.equal(c.action, null)
+  })
+})
+
+test('collectChangeSets: an exact merged PR head retires a surviving local integration branch', async () => {
+  await inTempRepo(async repo => {
+    const exec = fakeGit({
+      defaultBranch: 'main',
+      branches: ['integration/legacy'],
+      exist: ['integration/legacy', 'origin/main'],
+      shas: { 'integration/legacy': 'abc1234' },
+      tree: { 'integration/legacy': [] },
+      mergedPrs: [{ number: 24, headRefName: 'integration/legacy', headRefOid: 'abc1234', state: 'MERGED' }]
+    })
+    const [c] = await collectChangeSets(repo, exec)
+    assert.equal(c.shipped, true)
+    assert.equal(c.action, null)
+  })
+})
+
+test('collectChangeSets: a branch advanced after merge remains active', async () => {
+  await inTempRepo(async repo => {
+    const exec = fakeGit({
+      defaultBranch: 'main',
+      branches: ['integration/reused'],
+      exist: ['integration/reused', 'origin/main'],
+      shas: { 'integration/reused': 'new1234' },
+      tree: { 'integration/reused': [] },
+      mergedPrs: [{ number: 25, headRefName: 'integration/reused', headRefOid: 'old1234', state: 'MERGED' }]
+    })
+    const [c] = await collectChangeSets(repo, exec)
+    assert.equal(c.shipped, false)
+    assert.equal(c.action, 'plan')
   })
 })
 

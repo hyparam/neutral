@@ -56,6 +56,10 @@ Steps (idempotent):
 
 1. Skip if a `fix/issue-N` branch or a `Fixes #N` PR already exists — resume it,
    never duplicate (re-derived from git/`gh`, not a stored flag; LLP 0002).
+
+   > **Extended-by [LLP 0063](0063-stale-work-surface-retirement.issue.md):** a
+   > branch whose exact head PR was closed unmerged is disposed, not resumable; the
+   > issue returns to `needs-fix` with the closed PR as its cleanup provenance.
 2. Branch `fix/issue-N` off the default branch.
 3. Dispatch a fix agent under the diagnose/bugfix discipline: **reproduce → root
    cause → fix**, where *reproduce* means a regression test that **fails** on the

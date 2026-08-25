@@ -44,8 +44,30 @@ export function fixedIssueNumbers(body) {
  * @param {string} fixBranch
  * @returns {boolean}
  */
+/** @param {string|import('./types.d.ts').BranchTip} branch @param {string} fixBranch */
 function isFixBranch(branch, fixBranch) {
-  return branch === fixBranch || branch === `origin/${fixBranch}`
+  const name = typeof branch === 'string' ? branch : branch.name
+  return name === fixBranch || name === `origin/${fixBranch}`
+}
+
+/** @param {string|import('./types.d.ts').BranchTip} branch */
+function branchSha(branch) {
+  return typeof branch === 'string' ? '' : branch.sha
+}
+
+/** @param {any} pr */
+function prState(pr) {
+  return String(pr.state || 'OPEN').toUpperCase()
+}
+
+/** @param {any} pr */
+function prHead(pr) {
+  return pr.head || pr.headRefName || ''
+}
+
+/** @param {any} pr */
+function prHeadSha(pr) {
+  return pr.headSha || pr.headRefOid || ''
 }
 
 /**
@@ -54,7 +76,7 @@ function isFixBranch(branch, fixBranch) {
  * branch or `Fixes #N` PR means the attempt exists (resume, never duplicate — step
  * 1); else it still needs a fix.
  * @param {number} issue
- * @param {{branches?: string[], prs?: Array<{number: number, body: string}>, labels?: string[]}} obs
+ * @param {{branches?: Array<string|import('./types.d.ts').BranchTip>, prs?: Array<{number: number, body?: string, head?: string, headRefName?: string, headSha?: string, headRefOid?: string, state?: string}>, labels?: string[]}} obs
  * @returns {{state: IssueFixState['state'], via?: string}}
  * @ref LLP 0009#issue-fix-reconciler [implements] — idempotent intake
  */
@@ -63,11 +85,31 @@ export function classifyIssue(issue, obs) {
   if (labels.includes(STUCK_LABEL)) return { state: 'stuck', via: `label:${STUCK_LABEL}` }
 
   const fixBranch = fixBranchName(issue)
-  if ((obs.branches || []).some(b => isFixBranch(b, fixBranch))) {
+  const prs = obs.prs || []
+  const openLinked = prs.find(pr => prState(pr) === 'OPEN' && fixedIssueNumbers(pr.body || '').includes(issue))
+  if (openLinked) return { state: 'attempt-exists', via: `pr:#${openLinked.number}` }
+
+  const tips = (obs.branches || []).filter(b => isFixBranch(b, fixBranch))
+  const openHead = prs.find(pr => prState(pr) === 'OPEN' && prHead(pr) === fixBranch)
+  if (openHead) return { state: 'attempt-exists', via: `pr:#${openHead.number}` }
+
+  if (tips.length) {
+    const disposed = tips.map(tip => prs.find(pr => {
+      if (prState(pr) !== 'CLOSED' || prHead(pr) !== fixBranch) return false
+      const tipSha = branchSha(tip)
+      const closedSha = prHeadSha(pr)
+      return !tipSha || !closedSha || tipSha.toLowerCase() === closedSha.toLowerCase()
+    }))
+    if (disposed.every(Boolean)) {
+      /** @type {{number: number}|null} */
+      let latest = null
+      for (const pr of disposed) {
+        if (pr && (!latest || pr.number > latest.number)) latest = pr
+      }
+      if (!latest) return { state: 'attempt-exists', via: `branch:${fixBranch}` }
+      return { state: 'needs-fix', via: `closed-pr:#${latest.number}` }
+    }
     return { state: 'attempt-exists', via: `branch:${fixBranch}` }
-  }
-  for (const pr of obs.prs || []) {
-    if (fixedIssueNumbers(pr.body).includes(issue)) return { state: 'attempt-exists', via: `pr:#${pr.number}` }
   }
   return { state: 'needs-fix' }
 }

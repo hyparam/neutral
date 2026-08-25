@@ -243,6 +243,29 @@ export async function branchesWithPrefix(repo, prefix, exec = run) {
 }
 
 /**
+ * Branch tips under `<prefix>`, with local/origin spellings normalized but distinct
+ * SHAs retained. Distinct tips matter when a local branch diverged from its remote:
+ * a disposed PR head retires only the exact tip it carried, never later work that
+ * reused the same branch name.
+ * @param {string} repo
+ * @param {string} prefix
+ * @param {typeof run} [exec]
+ * @returns {Promise<import('./types.d.ts').BranchTip[]>}
+ * @ref LLP 0063#exact-head-retirement [implements]
+ */
+export async function branchTipsWithPrefix(repo, prefix, exec = run) {
+  const out = await exec('git', ['for-each-ref', '--format=%(refname:short)%00%(objectname)', `refs/heads/${prefix}`, `refs/remotes/origin/${prefix}`], repo)
+  /** @type {Map<string, import('./types.d.ts').BranchTip>} */
+  const tips = new Map()
+  for (const line of out.split('\n').map(s => s.trim()).filter(Boolean)) {
+    const [rawName, sha = ''] = line.split('\0')
+    const name = rawName.replace(/^origin\//, '')
+    tips.set(`${name}\0${sha}`, { name, sha })
+  }
+  return [...tips.values()]
+}
+
+/**
  * The `integration/*` change-set branch names, local and remote, deduped to the
  * `integration/<slug>` short form.
  * @param {string} repo

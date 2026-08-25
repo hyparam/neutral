@@ -17,7 +17,7 @@ function fakeWorld({ prs = [], views = {}, issues = [], fixBranches = [], merged
   return async (cmd, args) => {
     if (cmd === 'git' && args[0] === 'for-each-ref') {
       // only the `fix/*` lookup is exercised here
-      return fixBranches.join('\n') + '\n'
+      return fixBranches.map((b, i) => `${b}\0${String(i + 1).padStart(40, '0')}`).join('\n') + '\n'
     }
     if (cmd === 'gh' && args[0] === 'pr' && args[1] === 'list') {
       if (args[args.indexOf('--state') + 1] === 'merged') {
@@ -25,7 +25,7 @@ function fakeWorld({ prs = [], views = {}, issues = [], fixBranches = [], merged
       }
       const fields = args[args.indexOf('--json') + 1]
       return JSON.stringify(prs.map(p => fields.includes('body')
-        ? { number: p.number, body: p.body || '', headRefName: p.headRefName }
+        ? { number: p.number, body: p.body || '', headRefName: p.headRefName, headRefOid: p.headRefOid || '', state: p.state || 'OPEN' }
         : { number: p.number, headRefName: p.headRefName, labels: p.labels || [] }))
     }
     if (cmd === 'gh' && args[0] === 'pr' && args[1] === 'view') {

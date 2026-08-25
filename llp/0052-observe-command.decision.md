@@ -88,3 +88,7 @@ this closes the family the predicate could not see.
   the sweep that says which slugs to look at.
 - An integration branch that outlives its merged rollup PR reads `null`
   (shipped) — branch cleanup stays a human call.
+
+  > **Extended-by [LLP 0063](0063-stale-work-surface-retirement.issue.md):** an
+  > exact merged PR head is also sufficient shipped proof for legacy branches that
+  > lack the Active design marker; branch-name history without matching OIDs is not.

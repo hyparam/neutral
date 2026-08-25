@@ -39,6 +39,10 @@ surface, not two. A `neutral:stuck` PR that owes only its report or awaits a hum
 or a `neutral:stuck` issue, is **frozen**: it remains visible but consumes no slot.
 A human reply makes a stuck PR active again at its `unstick` action.
 
+> **Extended-by [LLP 0063](0063-stale-work-surface-retirement.issue.md):** a
+> merged exact integration head and a closed-unmerged exact fix head are disposed
+> surfaces, not active admission owners, even while their branch refs survive.
+
 `neutral observe` emits the complete `admission` decision (`limit`, `used`,
 `available`, `open`, active surfaces and frozen surfaces). The skill acts on it; it
 does not recount work. At capacity:

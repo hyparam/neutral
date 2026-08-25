@@ -4,8 +4,8 @@
 // from `fix/issue-N` branches + `Fixes #N` PRs + labels, never a stored flag. The
 // loop's eyes for the issue-fix reconciler.
 // @ref LLP 0009#issue-fix-reconciler [implements]
-import { run, branchesWithPrefix } from '../git.js'
-import { listLabelledIssues, listOpenPRBodies } from '../github.js'
+import { run, branchTipsWithPrefix } from '../git.js'
+import { listLabelledIssues, listPRHistory } from '../github.js'
 import { classifyIssue } from '../issuefix.js'
 import { FIX_LABEL } from '../config.js'
 
@@ -22,12 +22,12 @@ import { FIX_LABEL } from '../config.js'
 export async function collectIssues(repo, exec = run, label = FIX_LABEL) {
   const issues = await listLabelledIssues(repo, label, exec)
   if (!issues.length) return []
-  /** @type {string[]} */
+  /** @type {import('../types.d.ts').BranchTip[]} */
   let branches = []
   try {
-    branches = await branchesWithPrefix(repo, 'fix', exec)
+    branches = await branchTipsWithPrefix(repo, 'fix', exec)
   } catch { /* not a git repo / no fix branches — none observed */ }
-  const prs = await listOpenPRBodies(repo, exec)
+  const prs = await listPRHistory(repo, exec)
   return issues.map(i => ({ number: i.number, title: i.title, ...classifyIssue(i.number, { branches, prs, labels: i.labels }) }))
 }
 

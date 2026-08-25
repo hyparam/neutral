@@ -210,3 +210,37 @@ export async function listOpenPRBodies(repo, exec = run) {
     return []
   }
 }
+
+/** @param {unknown} value @returns {import('./types.d.ts').PullRequestHistory['state']} */
+function normalizePRState(value) {
+  const state = String(value || '').toUpperCase()
+  if (state === 'CLOSED' || state === 'MERGED') return state
+  return 'OPEN'
+}
+
+/**
+ * All PR dispositions with the exact head each PR carried. This is lifecycle
+ * ground truth, not a ledger: a merged exact integration head is shipped, while a
+ * closed-unmerged exact fix head is no longer an active attempt. Failure returns an
+ * empty history, conservatively leaving branch-derived work visible.
+ * @param {string} repo
+ * @param {typeof run} [exec]
+ * @returns {Promise<import('./types.d.ts').PullRequestHistory[]>}
+ * @ref LLP 0063#exact-head-retirement [implements]
+ */
+export async function listPRHistory(repo, exec = run) {
+  try {
+    const fields = 'number,body,headRefName,headRefOid,state'
+    const out = await exec('gh', ['pr', 'list', '--state', 'all', '--json', fields, '--limit', '1000'], repo)
+    const arr = JSON.parse(out)
+    return (Array.isArray(arr) ? arr : []).map(p => ({
+      number: p.number,
+      body: p.body || '',
+      head: p.headRefName || '',
+      headSha: p.headRefOid || '',
+      state: normalizePRState(p.state)
+    }))
+  } catch {
+    return []
+  }
+}

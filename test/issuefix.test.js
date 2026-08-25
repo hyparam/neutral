@@ -34,6 +34,26 @@ test('classifyIssue: an existing fix branch is an attempt (resume, never duplica
   )
 })
 
+test('classifyIssue: a closed-unmerged PR disposes its lingering fix branch', () => {
+  assert.deepEqual(
+    classifyIssue(8, {
+      branches: ['fix/issue-8'],
+      prs: [{ number: 88, body: 'Fixes #8', headRefName: 'fix/issue-8', state: 'CLOSED' }]
+    }),
+    { state: 'needs-fix', via: 'closed-pr:#88' }
+  )
+})
+
+test('classifyIssue: a push after a closed PR is a new active tip, not disposed history', () => {
+  assert.deepEqual(
+    classifyIssue(8, {
+      branches: [{ name: 'fix/issue-8', sha: 'new8888' }],
+      prs: [{ number: 88, body: 'Fixes #8', headRefName: 'fix/issue-8', headRefOid: 'old8888', state: 'CLOSED' }]
+    }),
+    { state: 'attempt-exists', via: 'branch:fix/issue-8' }
+  )
+})
+
 test('classifyIssue: a Fixes #N PR is an attempt even with no branch observed', () => {
   assert.deepEqual(
     classifyIssue(11, { prs: [{ number: 20, body: 'work\nFixes #11' }] }),

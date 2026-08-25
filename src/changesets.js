@@ -5,7 +5,8 @@
 // the read-only main checkout (LLP 0012) with no worktree dance. This is the fourth
 // pipeline-family observation, the one that previously had no command and got skipped.
 // @ref LLP 0052#change-set-gaps-from-refs [implements] — change-set gaps derived from refs
-import { run, resolveRef, integrationBranches, showFile, defaultBranch, changeSetMergedToTarget, doneSetFromGit } from './git.js'
+import { run, resolveRef, commitSha, integrationBranches, showFile, defaultBranch, changeSetMergedToTarget, doneSetFromGit } from './git.js'
+import { listPRHistory } from './github.js'
 import { loadConfig } from './config.js'
 import { parseTasks } from './tasks.js'
 import { readyTasks } from './ready.js'
@@ -49,6 +50,7 @@ export function changeSetAction({ shipped, plan, tasks, hasOpenPR }) {
  */
 export async function collectChangeSets(repo, exec = run, { openHeads = new Set() } = {}) {
   const config = loadConfig(repo)
+  const mergedPRs = (await listPRHistory(repo, exec)).filter(p => p.state === 'MERGED')
   /** @type {string[]} */
   let branches
   try {
@@ -69,7 +71,13 @@ export async function collectChangeSets(repo, exec = run, { openHeads = new Set(
     const slug = integration.replace(/^integration\//, '')
     const ref = await resolveRef(repo, integration, exec)
     if (!ref) continue
-    const shipped = targetRef ? await changeSetMergedToTarget(repo, slug, targetRef, exec) : false
+    const headSha = await commitSha(repo, ref, exec)
+    const mergedPR = headSha
+      ? mergedPRs.find(p => p.head === integration && p.headSha.toLowerCase() === headSha.toLowerCase())
+      : null
+    // @ref LLP 0063#exact-head-retirement [implements] — squash-merged rollups
+    // retire by exact PR head even when a legacy branch lacks the Active design marker.
+    const shipped = !!mergedPR || (targetRef ? await changeSetMergedToTarget(repo, slug, targetRef, exec) : false)
     const { plan, tasks, error } = await readPlanFromRef(repo, ref, slug, config.llpDir, exec)
     /** @type {ReadyResult | null} */
     let queues = null
@@ -77,7 +85,9 @@ export async function collectChangeSets(repo, exec = run, { openHeads = new Set(
       const done = await doneSetFromGit(repo, integration, tasks, exec)
       queues = readyTasks(tasks, done)
     }
-    const { action, reason } = changeSetAction({ shipped, plan, tasks: queues, hasOpenPR: openHeads.has(integration) })
+    const decision = changeSetAction({ shipped, plan, tasks: queues, hasOpenPR: openHeads.has(integration) })
+    const action = decision.action
+    const reason = mergedPR ? `exact head merged by PR #${mergedPR.number} — shipped` : decision.reason
     out.push({
       slug, integration, plan, shipped, action,
       reason: error ? `${reason} (${error})` : reason,

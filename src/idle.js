@@ -33,7 +33,7 @@ const PR_AT_REST = 'held'
  * not in flight. A stuck PR at rest means its report is posted and no human has replied
  * (action `held`, LLP 0026/0027); a pending `stuck-report` or `unstick` is one tick of
  * real work and blocks like any other non-`held` action.
- * @param {{ backlog?: Array<{number?: number, title?: string}>, implementable?: Array<{number: number, slug?: string}>, changesets?: Array<{slug: string, action: string | null, reason?: string}>, prs?: Array<{number: number, action: string}>, issues?: Array<{number: number, state: string}> }} obs
+ * @param {{ backlog?: Array<{number?: number, title?: string}>, implementable?: Array<{number: number, slug?: string}>, changesets?: Array<{slug: string, action: string | null, reason?: string}>, prs?: Array<{number: number, action: string}>, issues?: Array<{number: number, state: string, via?: string}> }} obs
  * @returns {IdleState}
  * @ref LLP 0013#trigger [implements]
  * @ref LLP 0052#idle-extension [implements] — a change-set gap blocks idle
@@ -59,7 +59,8 @@ export function idleState({ backlog = [], implementable = [], changesets = [], p
   }
   for (const i of issues) {
     if (i.state === 'needs-fix') {
-      blockers.push({ family: 'maintenance', target: `issue#${i.number}`, reason: 'needs-fix — no fix attempt yet' })
+      const disposition = i.via?.startsWith('closed-pr:') ? ` — previous attempt ${i.via} was closed` : ' — no fix attempt yet'
+      blockers.push({ family: 'maintenance', target: `issue#${i.number}`, reason: `needs-fix${disposition}` })
     }
   }
   return { idle: blockers.length === 0, blockers }

@@ -1,7 +1,7 @@
 // @ts-check
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { listOpenPRs, listMergedAdoptPRs, viewPR, normalizePR, isPRQueued, listLabelledIssues, listOpenPRBodies } from '../src/github.js'
+import { listOpenPRs, listMergedAdoptPRs, viewPR, normalizePR, isPRQueued, listLabelledIssues, listOpenPRBodies, listPRHistory } from '../src/github.js'
 
 /**
  * A fake `gh` runner keyed by subcommand. `fail` makes every call throw (offline).
@@ -88,4 +88,11 @@ test('listLabelledIssues flattens label objects to names', async () => {
 test('listOpenPRBodies returns bodies for Fixes #N scanning', async () => {
   const exec = fakeGh({ prBodies: [{ number: 8, body: 'Fixes #7', headRefName: 'fix/issue-7' }] })
   assert.deepEqual(await listOpenPRBodies('/r', exec), [{ number: 8, body: 'Fixes #7', headRefName: 'fix/issue-7' }])
+})
+
+test('listPRHistory normalizes all-state dispositions and exact heads', async () => {
+  const exec = fakeGh({ prBodies: [{ number: 8, body: 'Fixes #7', headRefName: 'fix/issue-7', headRefOid: 'abc1234', state: 'CLOSED' }] })
+  assert.deepEqual(await listPRHistory('/r', exec), [
+    { number: 8, body: 'Fixes #7', head: 'fix/issue-7', headSha: 'abc1234', state: 'CLOSED' }
+  ])
 })

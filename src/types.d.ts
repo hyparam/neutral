@@ -329,8 +329,23 @@ export interface IssueFixState {
   title: string
   /** needs-fix | attempt-exists | stuck. */
   state: 'needs-fix' | 'attempt-exists' | 'stuck'
-  /** how an attempt was found: `branch:fix/issue-N` | `pr:#M` | `label:neutral:stuck`. */
+  /** how state was found: `branch:fix/issue-N` | `pr:#M` | `closed-pr:#M` | `label:neutral:stuck`. */
   via?: string
+}
+
+/** One observed branch tip, normalized across local and origin-tracking refs. */
+export interface BranchTip {
+  name: string
+  sha: string
+}
+
+/** Minimal all-state PR history used to retire disposed work surfaces (LLP 0063). */
+export interface PullRequestHistory {
+  number: number
+  body: string
+  head: string
+  headSha: string
+  state: 'OPEN' | 'CLOSED' | 'MERGED'
 }
 
 /** Fleet-silence verdict — one classifySilence read (LLP 0057 §fleet-silence). */
