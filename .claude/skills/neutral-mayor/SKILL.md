@@ -305,17 +305,57 @@ After pushes and inbound, replace the channel canvas **whole** with a fresh
 render of re-derived state — full replace, no section bookkeeping, so an
 error lasts at most one tick. **The markdown starts with an H1 title —
 `# neutral fleet` — on its first line** (the canvas surfaces it as the
-document title; without it the canvas shows untitled). Then four sections,
+document title; without it the canvas shows untitled). Then five sections,
 kept tight:
 
-1. **Fleet at a glance** — loops + health, last tick, and a
+1. **Work slots** — first, immediately below the title: per-repository
+   admission capacity and the linked consumer of every occupied slot.
+2. **Fleet at a glance** — loops + health, last tick, and a
    `_derived at <UTC time>_` stamp (an old stamp honestly signals a dead
    mayor; never fake freshness).
-2. **Waiting on you** — the pin queue, one line each: what it *needs* and
+3. **Waiting on you** — the pin queue, one line each: what it *needs* and
    links to thread + GitHub.
-3. **In flight** — PRs mid-rung, queued issues with states.
-4. **How to use me** — 3–4 line legend: thread reply = verbatim relay,
+4. **In flight** — PRs mid-rung, queued issues with states.
+5. **How to use me** — 3–4 line legend: thread reply = verbatim relay,
    channel message = conversation, event key formats.
+
+**Render Work slots from the semaphore decision, not from the other canvas
+sections** (LLP 0067 R1). In every repo clone, use the `admission` object from
+that tick's `neutral observe --json`; never recount PRs, branches, or issues.
+Group by repository and show `<used>/<limit> occupied`. Walk
+`admission.active` in its emitted order and number it from 1:
+
+- `kind: "pr"`, target `pr#N` → link to the GitHub PR and show `reason` (the
+  head branch).
+- `kind: "issue"`, target `issue#N` → link to the GitHub issue and show
+  `reason` (the owned fix attempt).
+- `kind: "changeset"`, target `changeset/<slug>` → link to the GitHub tree for
+  `reason` (the `integration/<slug>` branch).
+
+Use the repository URL re-derived for that clone (for example `gh repo view
+--json url -q .url`) as the base for GitHub links. For PR and issue consumers,
+append the existing artifact-root `[thread](...)` permalink when this tick's
+root map has one, under the same no-fabrication rule below. A branch-only change
+set has no artifact thread.
+
+After the active entries, render each remaining configured slot through
+`admission.limit` as `available`, so every slot is accounted for. If
+`admission.used > admission.limit`, render every active entry anyway and label
+entries beyond the limit `overflow`; lowering the cap must not hide owned work.
+For a zero limit, show `0/0 occupied — paused` and no invented slot rows.
+Do not put `admission.frozen` in Work slots — LLP 0060 deliberately excludes it
+from capacity; waiting/stuck sections continue to show those surfaces.
+
+Example shape (the actual consumers and links always come from this tick):
+
+```markdown
+## Work slots
+### owner/repo — 2/4 occupied
+1. [PR #42](https://github.com/owner/repo/pull/42) · [thread](https://…) — `integration/search`
+2. [issue #17](https://github.com/owner/repo/issues/17) — `branch:fix/issue-17`
+3. available
+4. available
+```
 
 **Every PR or issue the canvas mentions — in any section — carries two
 links: its GitHub page, and its Slack thread whenever an event root exists

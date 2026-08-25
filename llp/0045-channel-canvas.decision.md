@@ -39,6 +39,10 @@ visibly old canvas, not a wrong-looking fresh one.
   if the channel has none. Extended-by: LLP 0055 (the id lookup must scan
   `properties.tabs`; create is not idempotent).
 
+> **Extended-by [LLP 0067](0067-canvas-admission-slots.spec.md):** the first
+> canvas section accounts for every configured admission slot and links each
+> occupied slot to the work surface consuming it.
+
 ## Consequences
 
 - Mayor skill gains a repaint step after push/inbound; one `canvases.edit`
