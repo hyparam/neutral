@@ -1,6 +1,6 @@
 ---
 name: neutral-reconcile
-description: Run one reconcile tick of neutral — observe git/GitHub ground truth across both reconciler families (LLP→PR pipeline + PR/issue maintenance), heal every admitted branch-disjoint gap in parallel, admit bounded new work, fan in serial verified merges, and re-derive "done" from git. Final reviewed heads pass through the ship-risk shadow gate; observation mode reports prospective automerge eligibility and holds. Idempotent and safe to re-run. Use when running `/loop /neutral-reconcile` to drive a repo toward neutral state, or to run one tick by hand.
+description: Run one reconcile tick of neutral — observe git/GitHub ground truth across both reconciler families (LLP→PR pipeline + PR/issue maintenance), heal every admitted branch-disjoint gap in parallel, admit bounded new work, fan in serial verified merges, and re-derive "done" from git. Final reviewed heads pass through the ship-risk gate; automerge may land only an eligible exact head, while repositories without that authority observe and hold. Idempotent and safe to re-run. Use when running `/loop /neutral-reconcile` to drive a repo toward neutral state, or to run one tick by hand.
 allowed-tools: Bash, Read, Write, Edit, Agent, Skill, Workflow
 ---
 
@@ -27,12 +27,12 @@ is closed — no uncovered request LLP, no `neutral:fix` issue without a fix att
 no in-scope PR left unmergeable / failing / unreviewed. Neutral stops at the
 boundary of what only a human may do: **merging is the one act neutral never
 performs** — unless the repo owner moves that boundary with `automerge: true`
-and a landing policy authorizes the exact head. The current ship-risk release is
-shadow-only: `shipRisk.mode: observe` records the prospective decision and always
-holds (LLP 0062). With the shadow gate off, LLP 0019's legacy automerge behavior
-remains; `mergeQueue: true` delegates freshness and landing order to GitHub's merge
-queue (LLP 0060). By default Neutral drives every artifact to *held, green,
-reviewed* and waits.
+and a landing policy authorizes the exact head. `shipRisk.mode: observe` requires
+a current-head assessment: without automerge authority it records and holds; with
+that authority, only a result within `maxAutomerge` may land (LLP 0062/0069).
+`off` preserves LLP 0019's legacy risk-unaware terminal. `mergeQueue: true`
+delegates freshness and landing order to GitHub's merge queue (LLP 0060). By
+default Neutral drives every artifact to *held, green, reviewed* and waits.
 
 ## The one rule — ground truth, never self-report (LLP 0002)
 
@@ -408,7 +408,7 @@ PR each tick, sync the `neutral:approved` label to the decision's **`approved`**
 `gh pr edit N --add-label neutral:approved` iff `approved` is `true` and the label is
 absent, or `gh pr edit N --remove-label neutral:approved` iff `approved` is falsy and the
 label is present (do nothing when already in sync). `approved` is `true` once the
-current head is reviewed-clean (`assess-ship-risk`, its observation hold, the legacy
+current head is reviewed-clean (`assess-ship-risk`, its risk hold, the legacy
 `ready-hold` / `held` / `merge` / `enqueue`, plus queue `wait`), so the label is added there and
 **stripped the instant the PR regresses** (any heal/review/stuck/triage rung omits the
 field) — it tracks the current reviewed-clean head and never goes stale. This runs
@@ -534,22 +534,25 @@ which replies are new.
     Comment on the PR linking the issue. Then append `<!-- neutral-triage: <the head SHA> #M -->`
     to the PR body (`gh pr edit N --body …`) — **last**, so a partial failure re-triages
     rather than skipping. The marker satisfies the reviewed rung; **next tick** the PR is
-    reviewed-clean; next tick the ship-risk shadow gate assesses it and then holds.
-    With the shadow gate explicitly off, the legacy terminal may enqueue where
-    automatic queue landing is configured. The
+    reviewed-clean; next tick the ship-risk gate assesses it and applies the
+    configured threshold plus automerge authority. With the gate explicitly off,
+    the legacy terminal may enqueue where automatic queue landing is configured. The
     deferred findings ride the issue-fix reconciler (the invariants compose — LLP 0008).
   - **Any residual finding is a true blocker** → it cannot merge safely. Label the PR
     `neutral:stuck` and post the **stuck report** (LLP 0026, format above): why each
     blocker is a production risk, the non-blockers too (the human sees the whole PR),
     and what decision or input unsticks it. Surface it — do not split, do not churn.
   Skip entirely if a `neutral-triage` marker already covers the head (already triaged).
-- **`assess-ship-risk`** (final shadow gate, reviewed-clean exact head): invoke
+- **`assess-ship-risk`** (final risk gate, reviewed-clean exact head): invoke
   `/ship-risk <PR number> <headSha>` in the PR's clean isolated worktree. The skill
   performs an independent proof-carrying assessment and posts one
   `<!-- neutral-ship-risk: <sha> <low|medium|high|unknown> e<1-5> v1 -->` record comment.
   It never changes code or lands the PR. Re-observe next tick; the CLI compares the
-  observed level with `shipRisk.maxAutomerge` and reports `shipRiskEligible` /
-  `wouldAutomerge`. In `shipRisk.mode=observe`, every result still holds.
+  observed level and evidence with `shipRisk.maxAutomerge` and reports
+  `shipRiskEligible` / `wouldAutomerge`. Without `automerge` authority every result
+  holds. With it, the CLI emits `merge`/`enqueue` only for an eligible exact head;
+  above-threshold, `unknown`, and evidence below e4 emit `ready-hold`/`held`
+  (LLP 0069). Act only on that emitted action.
 - **`stuck-report`** (labelled `neutral:stuck`, but no marker-signed report in the
   thread — a worker crashed between label and comment, a hand-labelled PR, or a PR
   stuck before LLP 0026): dispatch ONE agent (**worker tier — `opus`**) to read the
@@ -567,16 +570,18 @@ which replies are new.
   `gh pr ready <N>`, ensure `neutral:approved` is set (the label sync above; `approved`
   is `true` here — LLP 0030), and **HOLD**. Never merge; never `gh pr ready` a PR neutral
   does not own.
-- **`merge`** (terminal, only when the repo opted in with `automerge: true` —
-  LLP 0019): `gh pr ready <N>` if still a draft, then `gh pr merge <N> --squash`
+- **`merge`** (terminal, only when the repo opted in with `automerge: true` and
+  the configured ship-risk policy permits this exact head — LLP 0019/0069):
+  `gh pr ready <N>` if still a draft, then `gh pr merge <N> --squash`
   (squash-only-at-the-final-PR, as for a human merge). No `--delete-branch` — the
   Handoff stage owns cleanup. The CLI emits this action *only* when all three rungs
   hold at the current head and the PR is not `neutral:stuck`; if the merge is
   refused (branch protection), leave it — next tick re-observes. **Verify like a
   human merge:** next tick the design LLP on `origin/<DEFAULT>` /
   `gh pr view --json state` = `MERGED` is the ground truth, not gh's exit code.
-- **`enqueue`** (terminal, only when both `automerge: true` and `mergeQueue: true`
-  — LLP 0060/0061): `gh pr ready <N>` if still a draft, re-observe next tick, then
+- **`enqueue`** (terminal, only when `automerge: true`, `mergeQueue: true`, and the
+  configured ship-risk policy permits this exact head — LLP 0060/0061/0069):
+  `gh pr ready <N>` if still a draft, re-observe next tick, then
   `neutral enqueue <N> <headSha>`. The command verifies the current head, passes it
   again as GraphQL `expectedHeadOid`, and requires a returned queue entry. This adds
   the PR to GitHub's queue; it does not use or require repository auto-merge.
@@ -598,8 +603,9 @@ the verdict, but **never push to the branch**, even when push access exists (LLP
 delegation is tagged `[adopt]` and rides the ordinary own-PR ladder above **end-to-end**:
 heal every rung and **push the fixes to the contributor's branch**, `triage` at the review
 cap (LLP 0017), sync `neutral:approved` to the decision's `approved` field (LLP 0030), and
-take the own terminal — including the ship-risk shadow assessment before
-`ready-hold`/`held`, `merge`, or `enqueue` where policy permits it (LLP 0019/0060/0062).
+take the own terminal — including the ship-risk assessment before
+`ready-hold`/`held`, `merge`, or `enqueue` where policy permits it
+(LLP 0019/0060/0062/0069).
 The maintainer's label delegated the PR's *whole care, terminal included*
 (LLP 0024/0058); there is no additional consent to seek and no reason to hold back because
 the code started as a contributor's. Do not voluntarily downgrade to review-only, do not
@@ -699,8 +705,10 @@ begin. Delete the merged integration branch (local + `git push origin --delete`)
 - **Never land — unless the CLI's rung says `merge` or `enqueue`.** Landing is the one
   irreversible act, a human's by default; drive to held + green + reviewed and
   stop. The single exception is the repo opting in via `automerge: true`
-  (LLP 0019); `mergeQueue: true` selects queue landing (LLP 0060). Even then only
-  the `neutral prs` action decides — never merge or enqueue on your own judgement.
+  (LLP 0019); the enabled ship-risk gate limits that authority to eligible assessed
+  heads (LLP 0069), and `mergeQueue: true` selects queue landing (LLP 0060). Even
+  then only the `neutral prs` action decides — never merge or enqueue on your own
+  judgement.
 - **Never push to the target branch.** All design/plan/code/fixes land via a held PR.
 - **Never `gh pr ready` or merge an unlabelled foreign PR or a review-only delegation.**
   Own PRs (`integration/*`, `fix/issue-*`) **and adopted PRs** (`[adopt]` — a pushable

@@ -47,6 +47,10 @@ flips a draft ready (`gh pr ready`) and **squash-merges** it (`gh pr merge
 > risk policy would merge the final head, but always holds until a later request
 > explicitly enables enforcement.
 
+> **Extended-by [LLP 0069](0069-automerge-respects-ship-risk.spec.md):** when the
+> ship-risk gate is on, this authority may land only an independently assessed
+> exact head within the repository's configured threshold.
+
 Everything upstream of the terminal rung is unchanged — automerge **relaxes the
 hold, never the gates**:
 

@@ -121,3 +121,7 @@ risk but cannot make an inherently high-consequence surface low.
 > levels are classified by plausible unintended user impact, and the public PR
 > comment is a terse surface summary while the full technical audit remains in
 > the private assessment artifact.
+
+> **Extended-by [LLP 0069](0069-automerge-respects-ship-risk.spec.md):** keeps
+> observation hold-only when automerge authority is off; when it is on, the
+> independently assessed exact-head threshold constrains landing.

@@ -61,8 +61,8 @@ export const DEFAULT_COOLDOWN_AFTER_REJECT_HOURS = 168
 // as a temporary intake stop. Existing work continues to reconcile at the cap.
 // @ref LLP 0060#admission-control [implements]
 export const DEFAULT_MAX_ACTIVE_WORK = 4
-// Final reviewed-head risk gate (LLP 0062). The first release is deliberately
-// observation-only: classify the exact head, show what policy would do, and hold.
+// Final reviewed-head risk gate (LLP 0062/0069). Observation remains the default;
+// the separate automerge flag decides whether an eligible assessment may land.
 // @ref LLP 0062#configuration [implements]
 export const DEFAULT_SHIP_RISK_MODE = 'observe'
 export const DEFAULT_MAX_AUTOMERGE_SHIP_RISK = 'low'
@@ -107,9 +107,10 @@ export const DEFAULT_CONFIG = {
   // check; Neutral stops pushing target merges into every BEHIND branch.
   // @ref LLP 0060#merge-queue [implements]
   mergeQueue: false,
-  // Shadow policy over the final reviewed head. `observe` never lands a PR; it
-  // records the assessment and exposes the prospective threshold decision.
+  // Policy over the final reviewed head. `observe` records the assessment and
+  // constrains any automerge authority to an eligible exact head.
   // @ref LLP 0062#configuration [implements]
+  // @ref LLP 0069#configuration-and-authority [implements]
   shipRisk: {
     mode: DEFAULT_SHIP_RISK_MODE,
     maxAutomerge: DEFAULT_MAX_AUTOMERGE_SHIP_RISK

@@ -51,3 +51,7 @@ The public explanation of the level is user-centered:
 
 The private classification work may use technical evidence, but the posted
 comment expresses the result only in this product language.
+
+> **Extended-by [LLP 0069](0069-automerge-respects-ship-risk.spec.md):** automerge
+> authority respects the assessed threshold; the public summary contract and
+> private evidence requirements remain unchanged.

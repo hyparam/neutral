@@ -80,9 +80,9 @@ test('collectPRs adopts a pushable neutral:adopt PR as its OWN — foreign: fals
   assert.deepEqual(got.map(p => [p.number, p.foreign, p.adopted, p.canPush, p.action]), [[4, false, true, true, 'review']])
 })
 
-test('an adopted PR rides the own ladder through ship-risk shadow observation (LLP 0058/0062)', async () => {
+test('an adopted PR rides the own ladder through ship-risk-gated automerge (LLP 0058/0062/0069)', async () => {
   // A pushable adoption is own, so its reviewed-clean final head receives the same
-  // ship-risk assessment and prospective policy decision as an integration PR.
+  // ship-risk assessment and threshold-gated landing decision as an integration PR.
   const exec = fakeWorld({
     prs: [{ number: 9, headRefName: 'contrib/patch', labels: [{ name: 'neutral:adopt' }, { name: 'neutral:adopted' }] }],
     views: {
@@ -95,10 +95,10 @@ test('an adopted PR rides the own ladder through ship-risk shadow observation (L
     assert.deepEqual((await collectPRs(repo, exec)).map(p => [p.number, p.foreign, p.adopted, p.action]), [[9, false, true, 'held']])
     mkdirSync(join(repo, '.neutral'))
     writeFileSync(join(repo, '.neutral', 'config.json'), JSON.stringify({ automerge: true }))
-    const [shadow] = await collectPRs(repo, exec)
-    assert.equal(shadow.action, 'held')
-    assert.equal(shadow.shipRiskEligible, true)
-    assert.equal(shadow.wouldAutomerge, true)
+    const [gated] = await collectPRs(repo, exec)
+    assert.equal(gated.action, 'merge')
+    assert.equal(gated.shipRiskEligible, true)
+    assert.equal(gated.wouldAutomerge, true)
   } finally {
     rmSync(repo, { recursive: true, force: true })
   }
@@ -121,6 +121,40 @@ test('collectPRs queue mode ignores BEHIND, enqueues a clean terminal, then wait
     assert.equal(p.action, 'wait')
     assert.equal(p.queued, true)
     assert.equal(p.approved, true)
+  } finally {
+    rmSync(repo, { recursive: true, force: true })
+  }
+})
+
+// @ref LLP 0069#deterministic-decision [tests]
+test('collectPRs threads ship risk into low-only automerge queue admission (LLP 0069)', async () => {
+  /** @param {number} number @param {'low'|'medium'} level */
+  const view = (number, level) => ({
+    id: `PR_${number}`, number, headRefName: `integration/risk-${level}`, baseRefName: 'main', isDraft: false,
+    mergeable: 'MERGEABLE', mergeStateStatus: 'CLEAN', statusCheckRollup: [],
+    headRefOid: 'abc1234', body: '<!-- neutral-review: abc1234 -->',
+    comments: [{ author: { login: 'phil' }, body: `<!-- neutral-ship-risk: abc1234 ${level} e4 v1 -->\nproof`, createdAt: '1' }]
+  })
+  const exec = fakeWorld({
+    prs: [
+      { number: 1, headRefName: 'integration/risk-low' },
+      { number: 2, headRefName: 'integration/risk-medium' }
+    ],
+    views: { 1: view(1, 'low'), 2: view(2, 'medium') }
+  })
+  const repo = mkdtempSync(join(tmpdir(), 'neutral-prs-'))
+  try {
+    mkdirSync(join(repo, '.neutral'))
+    writeFileSync(join(repo, '.neutral', 'config.json'), JSON.stringify({
+      automerge: true,
+      mergeQueue: true,
+      shipRisk: { mode: 'observe', maxAutomerge: 'low' }
+    }))
+    const got = await collectPRs(repo, exec)
+    assert.deepEqual(got.map(p => [p.number, p.action, p.shipRiskEligible, p.wouldAutomerge]), [
+      [1, 'enqueue', true, true],
+      [2, 'held', false, false]
+    ])
   } finally {
     rmSync(repo, { recursive: true, force: true })
   }

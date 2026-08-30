@@ -69,3 +69,7 @@ enqueues.
 > replaces the 80-word cap with a 120–200 word target and requires ordinary
 > product language organized around who could be affected, what could happen,
 > why the level fits, and what was checked.
+
+> **Extended-by [LLP 0069](0069-automerge-respects-ship-risk.spec.md):** the same
+> marker-signed, user-impact assessment gates landing when a repository grants
+> automerge authority; its presentation and classification are unchanged.

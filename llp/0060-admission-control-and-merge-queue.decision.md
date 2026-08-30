@@ -83,6 +83,10 @@ GitHub adds the exact head to the queue and validates the synthesized merge grou
 > observation always holds before a new enqueue; an entry already owned by GitHub
 > remains a queue `wait`.
 
+> **Extended-by [LLP 0069](0069-automerge-respects-ship-risk.spec.md):** automerge
+> admits a new queue entry only after the exact head passes the configured ship-risk
+> threshold; an existing GitHub-owned entry retains the same `wait` behavior.
+
 Queue membership is read from the Pull Request GraphQL `mergeQueueEntry` field.
 While an entry exists, the classifier returns `wait` with `approved: true`; it does
 not re-enqueue, merge the target into the branch, or repeat review. If GitHub drops

@@ -21,7 +21,7 @@ import { ADOPT_LABEL, ADOPTED_LABEL, DEFAULT_REVIEW_ROUNDS, STUCK_LABEL } from '
 const REVIEW_MARKER_RE = /<!--\s*neutral-review:\s*([0-9a-f]{7,40})(?:\s+(clean|findings))?\s*-->/gi
 
 // `<!-- neutral-ship-risk: <headSha> <level> e<1-5> v1 -->` — the independent final-head
-// shadow assessment (LLP 0062). Only v1 is accepted: a future schema must be an
+// assessment (LLP 0062/0069). Only v1 is accepted: a future schema must be an
 // explicit parser change, never silently read with old semantics.
 // @ref LLP 0062#assessment-record [implements]
 const SHIP_RISK_MARKER_RE = /<!--\s*neutral-ship-risk:\s*([0-9a-f]{7,40})\s+(low|medium|high|unknown)\s+e([1-5])\s+v1\s*-->/gi
@@ -412,7 +412,7 @@ export function rollupConclusion(rollup) {
  * @param {number} [maxReviewRounds]
  * @param {boolean} [automerge]  opt-in (LLP 0019): terminal = merge, not hold
  * @param {boolean} [mergeQueue] opt-in (LLP 0060): queue owns base freshness + landing
- * @param {ShipRiskConfig} [shipRisk] final-head shadow policy (LLP 0062)
+ * @param {ShipRiskConfig} [shipRisk] final-head policy (LLP 0062/0069)
  * @returns {RungDecision}
  * @ref LLP 0009#pr-health-reconciler [implements]
  */
@@ -492,32 +492,48 @@ export function selectRung(pr, maxReviewRounds = DEFAULT_REVIEW_ROUNDS, automerg
     return { rung: 'reviewed', action: 'review', reason: 'head not yet reviewed — run the review, fix findings, post the marker-signed review record comment' }
   }
 
-  // Final-head ship-risk SHADOW gate (LLP 0062). `neutral:approved` means the
+  // Final-head ship-risk gate (LLP 0062/0069). `neutral:approved` means the
   // reviewed-clean predicate above already holds, so assessment carries approved:true.
-  // Observation mode always holds: it reports the prospective policy decision but
-  // grants no merge authority. A head move invalidates the record through the same
-  // SHA predicate as review.
+  // Without automerge authority observation holds; with it, the same configured
+  // threshold permits landing only an eligible exact-head record. A head move
+  // invalidates the record through the same SHA predicate as review.
   // @ref LLP 0062#reconciler-behavior [implements]
+  // @ref LLP 0069#deterministic-decision [implements]
   if (shipRisk.mode === 'observe') {
     const assessment = shipRiskAtHead(pr.comments || [], pr.headSha)
     if (!assessment) {
       return {
         rung: 'ship-risk', action: 'assess-ship-risk', approved: true,
-        reason: `reviewed-clean head has no ship-risk v1 record — assess exact head; shadow threshold=${shipRisk.maxAutomerge}`
+        reason: `reviewed-clean head has no ship-risk v1 record — assess exact head; mode=${shipRisk.mode} threshold=${shipRisk.maxAutomerge}`
       }
     }
     const eligible = shipRiskEligible(assessment.level, shipRisk.maxAutomerge, assessment.evidence)
     const wouldAutomerge = automerge && eligible
-    const disposition = wouldAutomerge
-      ? 'would automerge under configured authority + threshold'
-      : eligible
-        ? 'risk-eligible, but automerge authority is off'
-        : `would hold above threshold=${shipRisk.maxAutomerge}`
+    const risk = {
+      approved: true,
+      shipRisk: assessment.level,
+      shipRiskEvidence: assessment.evidence,
+      shipRiskEligible: eligible,
+      wouldAutomerge
+    }
+    if (wouldAutomerge) {
+      if (mergeQueue) {
+        return {
+          rung: 'terminal', action: 'enqueue', ...risk,
+          reason: `ship risk ${assessment.level} e${assessment.evidence} is within threshold=${shipRisk.maxAutomerge}; automerge authority + merge queue on — enqueue this exact head`
+        }
+      }
+      return {
+        rung: 'terminal', action: 'merge', ...risk,
+        reason: `ship risk ${assessment.level} e${assessment.evidence} is within threshold=${shipRisk.maxAutomerge}; automerge authority on — squash-merge this exact head`
+      }
+    }
+    const disposition = eligible
+      ? 'risk-eligible, but automerge authority is off — HOLD'
+      : `outside threshold=${shipRisk.maxAutomerge} — HOLD`
     return {
-      rung: 'terminal', action: pr.isDraft ? 'ready-hold' : 'held', approved: true,
-      shipRisk: assessment.level, shipRiskEvidence: assessment.evidence,
-      shipRiskEligible: eligible, wouldAutomerge,
-      reason: `ship risk ${assessment.level} e${assessment.evidence} — ${disposition}; observation mode always HOLDs`
+      rung: 'terminal', action: pr.isDraft ? 'ready-hold' : 'held', ...risk,
+      reason: `ship risk ${assessment.level} e${assessment.evidence} — ${disposition}`
     }
   }
 

@@ -105,7 +105,7 @@ export interface NeutralConfig {
   automerge: boolean
   /** Opt-in (LLP 0060): use GitHub's merge queue for automerge landing and base freshness. */
   mergeQueue: boolean
-  /** Final reviewed-head ship-risk policy (LLP 0062). Observation is a shadow gate: classify and hold. */
+  /** Final reviewed-head ship-risk policy (LLP 0062/0069). */
   shipRisk: ShipRiskConfig
   /** Admission cap over non-frozen PR/change-set/fix work surfaces (LLP 0060). */
   maxActiveWork: number
@@ -126,9 +126,9 @@ export type ShipRiskLevel = 'low' | 'medium' | 'high' | 'unknown'
 export type ShipRiskThreshold = 'none' | 'low' | 'medium' | 'high'
 
 export interface ShipRiskConfig {
-  /** `observe` runs the shadow gate and always holds; `off` preserves the legacy terminal. */
+  /** `observe` assesses and gates automerge; `off` preserves the risk-unaware legacy terminal. */
   mode: 'off' | 'observe'
-  /** Highest assessed risk the prospective automerge policy would admit. */
+  /** Highest assessed risk automerge may admit. */
   maxAutomerge: ShipRiskThreshold
 }
 
@@ -250,13 +250,13 @@ export interface RungDecision {
    * `approve`).
    */
   approved?: boolean
-  /** Current-head ship-risk assessment, present after the shadow gate has a record (LLP 0062). */
+  /** Current-head ship-risk assessment, present after the risk gate has a record (LLP 0062/0069). */
   shipRisk?: ShipRiskLevel
   /** Highest proof level recorded for the critical safety fact, 1–5. */
   shipRiskEvidence?: number
-  /** Whether `shipRisk` is within the repo's configured prospective automerge threshold. */
+  /** Whether `shipRisk` is within the repo's configured automerge threshold. */
   shipRiskEligible?: boolean
-  /** Shadow decision: current automerge intent is on and this assessment is eligible. Never an action in observe mode. */
+  /** Current automerge intent is on and this assessment is eligible, so the terminal may land. */
   wouldAutomerge?: boolean
 }
 

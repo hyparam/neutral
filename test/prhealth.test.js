@@ -112,28 +112,76 @@ test('ship-risk threshold is ordered and unknown always fails closed (LLP 0062)'
   assert.equal(shipRiskEligible('low', 'low', 3), false)
 })
 
-test('ship-risk observation assesses once, then reports eligibility and always holds (LLP 0062)', () => {
+test('ship-risk observation assesses once and holds without automerge authority (LLP 0062/0069)', () => {
   const body = '<!-- neutral-review: abc1234 -->'
   /** @type {import('../src/types.d.ts').ShipRiskConfig} */
   const observeLow = { mode: 'observe', maxAutomerge: 'low' }
-  const missing = selectRung(pr({ headSha: 'abc1234', body, isDraft: false }), 2, true, false, observeLow)
+  const missing = selectRung(pr({ headSha: 'abc1234', body, isDraft: false }), 2, false, false, observeLow)
   assert.equal(missing.rung, 'ship-risk')
   assert.equal(missing.action, 'assess-ship-risk')
   assert.equal(missing.approved, true)
 
   const low = [{ author: 'phil', body: '<!-- neutral-ship-risk: abc1234 low e4 v1 -->\nproof', createdAt: '1' }]
-  const eligible = selectRung(pr({ headSha: 'abc1234', body, comments: low, isDraft: false }), 2, true, false, observeLow)
+  const eligible = selectRung(pr({ headSha: 'abc1234', body, comments: low, isDraft: false }), 2, false, false, observeLow)
   assert.equal(eligible.action, 'held')
   assert.equal(eligible.shipRisk, 'low')
   assert.equal(eligible.shipRiskEvidence, 4)
   assert.equal(eligible.shipRiskEligible, true)
-  assert.equal(eligible.wouldAutomerge, true)
+  assert.equal(eligible.wouldAutomerge, false)
 
   const medium = [{ author: 'phil', body: '<!-- neutral-ship-risk: abc1234 medium e4 v1 -->\nproof', createdAt: '1' }]
   const held = selectRung(pr({ headSha: 'abc1234', body, comments: medium, isDraft: true }), 2, true, true, observeLow)
   assert.equal(held.action, 'ready-hold')
   assert.equal(held.shipRiskEligible, false)
   assert.equal(held.wouldAutomerge, false)
+})
+
+// @ref LLP 0069#deterministic-decision [tests]
+test('automerge respects ship risk and lands only an eligible exact head (LLP 0069)', () => {
+  const body = '<!-- neutral-review: abc1234 -->'
+  /** @type {import('../src/types.d.ts').ShipRiskConfig} */
+  const observeLow = { mode: 'observe', maxAutomerge: 'low' }
+  const low = [{ author: 'phil', body: '<!-- neutral-ship-risk: abc1234 low e4 v1 -->\nproof', createdAt: '1' }]
+
+  const missing = selectRung(pr({ headSha: 'abc1234', body }), 2, true, true, observeLow)
+  assert.equal(missing.action, 'assess-ship-risk')
+  assert.equal(missing.approved, true)
+
+  const direct = selectRung(pr({ headSha: 'abc1234', body, comments: low, isDraft: false }), 2, true, false, observeLow)
+  assert.equal(direct.action, 'merge')
+  assert.equal(direct.shipRiskEligible, true)
+  assert.equal(direct.wouldAutomerge, true)
+
+  const queued = selectRung(pr({ headSha: 'abc1234', body, comments: low, isDraft: true }), 2, true, true, observeLow)
+  assert.equal(queued.action, 'enqueue')
+  assert.equal(queued.shipRisk, 'low')
+  assert.equal(queued.shipRiskEvidence, 4)
+
+  const noAuthority = selectRung(pr({ headSha: 'abc1234', body, comments: low, isDraft: true }), 2, false, true, observeLow)
+  assert.equal(noAuthority.action, 'ready-hold')
+  assert.equal(noAuthority.shipRiskEligible, true)
+  assert.equal(noAuthority.wouldAutomerge, false)
+})
+
+// @ref LLP 0069#failure-and-queue-behavior [tests]
+test('ship-risk-gated automerge fails closed above threshold, below evidence, unknown, and none (LLP 0069)', () => {
+  const body = '<!-- neutral-review: abc1234 -->'
+  /** @param {string} marker @param {import('../src/types.d.ts').ShipRiskThreshold} [threshold] */
+  const decide = (marker, threshold = 'low') => selectRung(
+    pr({
+      headSha: 'abc1234', body, isDraft: false,
+      comments: [{ author: 'phil', body: marker, createdAt: '1' }]
+    }),
+    2, true, true, { mode: 'observe', maxAutomerge: threshold }
+  )
+
+  const medium = decide('<!-- neutral-ship-risk: abc1234 medium e5 v1 -->')
+  assert.equal(medium.action, 'held')
+  assert.equal(medium.shipRiskEligible, false)
+  assert.equal(medium.wouldAutomerge, false)
+  assert.equal(decide('<!-- neutral-ship-risk: abc1234 low e3 v1 -->').action, 'held')
+  assert.equal(decide('<!-- neutral-ship-risk: abc1234 unknown e5 v1 -->').action, 'held')
+  assert.equal(decide('<!-- neutral-ship-risk: abc1234 low e5 v1 -->', 'none').action, 'held')
 })
 
 test('selectRung: an unfixable head reaches triage at the cap instead of re-reviewing forever (LLP 0029)', () => {

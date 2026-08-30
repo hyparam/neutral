@@ -54,7 +54,8 @@ integration branches, active-work limits, and why eligible work may wait.
   `0058-adopted-prs-are-own.decision.md`, `0059-review-round-grants.decision.md`,
   `0060-admission-control-and-merge-queue.decision.md`,
   `0061-explicit-merge-queue-enqueue.decision.md`,
-  `0062-ship-risk-shadow-gate.spec.md`
+  `0062-ship-risk-shadow-gate.spec.md`,
+  `0069-automerge-respects-ship-risk.spec.md`
 - Implementation: `src/prhealth.js`, `src/commands/prs.js`,
   `src/commands/enqueue.js`, `.claude/skills/neutral-reconcile/SKILL.md`,
   `.claude/skills/ship-risk/SKILL.md`
