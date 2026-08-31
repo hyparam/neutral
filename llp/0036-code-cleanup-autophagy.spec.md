@@ -6,6 +6,7 @@
 **Author:** Phil / Claude
 **Date:** 2026-07-27
 **Related:** 0002, 0008, 0009, 0011, 0013, 0019, 0035
+**Extended-by:** LLP 0070 — keep the proof as compact Solution bullets in the concise PR body
 
 ## Purpose
 

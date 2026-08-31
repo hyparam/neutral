@@ -81,6 +81,7 @@ Return EXACTLY the parsed JSON it prints — the fields ready, blocked, done, ea
 // trivial ancestor, and one production change set shipped minus a task that way.
 // So the worker runs DETACHED and only mints the branch ref at push time.
 // @ref LLP 0033#branch-birth [implements] — a branch's existence implies work
+// @ref LLP 0070#publish [implements] — every task PR uses the shared final publish boundary
 function implPrompt(t) {
   return `Implement ONE task of change set "${slug}" in the neutral repo at ${repo}. Isolate your work in your OWN git worktree — never edit the main checkout.
 
@@ -91,10 +92,8 @@ function implPrompt(t) {
    - Otherwise start fresh off the integration branch: \`git worktree add --detach "$WT" origin/${integration}\`.
    - \`cd "$WT"\` — do ALL work here, on the detached HEAD.
 3. Read the change set's plan LLP (\`llp/*-${slug}.plan.md\`) for task ${t.id}, plus the design + request LLPs. Implement EXACTLY task ${t.id}: ${t.brief ? t.brief : '(see the plan)'}. Follow the repo's own conventions (AGENTS.md / CLAUDE.md / CONTRIBUTING if present).
-4. Run the repo's checks before committing — DISCOVER them (package.json \`scripts\` such as test/typecheck/lint/build, a Makefile, or the conventions file). Install deps first if this fresh worktree needs them (e.g. \`npm install\`). Run at least the test suite, plus typecheck/lint/build if the repo defines them; ALL must pass. If the repo has no automated tests, say so explicitly in notes.
-5. \`git add -A && git commit\` (message ending with a \`Task-Id: ${t.id}\` trailer). Publish the branch only now that it carries the work commit: \`git push origin HEAD:refs/heads/${t.branch}\`.
-6. Ensure a PR into ${integration}: \`gh pr list --head ${t.branch}\` (reuse) else \`gh pr create --base ${integration} --head ${t.branch} --title "${t.id}: <summary>" --body "Implements task ${t.id} of ${slug}.\\n\\nTask-Id: ${t.id}"\`.
-7. Clean up: \`cd ${repo} && git worktree remove --force "$WT"\`.
+4. Check for an existing PR with \`gh pr list --head ${t.branch}\`. If none exists, read the installed neutral-reconcile skill's \`references/pr-publishing.md\` (normally \`~/.claude/skills/neutral-reconcile/references/pr-publishing.md\`; in this repo it is also at \`${repo}/.claude/skills/neutral-reconcile/references/pr-publishing.md\`) and follow it end-to-end against \`origin/${integration}\`: invoke the Skill tool with \`unslop\`, run the final repo checks, commit with a message ending in a \`Task-Id: ${t.id}\` trailer, push \`HEAD:refs/heads/${t.branch}\`, derive stats, and create the PR with \`--body-file\`. The Feature or issue paragraph comes from this task's brief and change-set design; Solution describes the final diff; append \`Task-Id: ${t.id}\` to the body. If the PR already exists, resume it without rerunning publication and just run the repo checks before any new commit + push.
+5. Clean up: \`cd ${repo} && git worktree remove --force "$WT"\`.
 
 Return: id="${t.id}", branch="${t.branch}", prNumber, headSha (\`git rev-parse origin/${t.branch}\`), testsPass (true ONLY if tests AND typecheck passed). If you cannot make them pass, return testsPass=false with short notes — never fake success.`
 }

@@ -234,12 +234,15 @@ Dispatch **one** worker in its **own worktree** off the target branch, on branch
 - **When in doubt, it is not dead.** Anything short of mechanical confidence
   stays. Finding **nothing** is a valid outcome: open no PR, report the no-op.
 - **Evidence in the PR body.** List every trim with the reachability searches
-  that came back empty — the PR proposes; the human review disposes.
+  that came back empty as compact Solution bullets — the PR proposes; the human
+  review disposes.
 - **Repo checks must pass** in the worktree before the PR opens (e.g. `npm test`
   + typecheck); CI on the PR is the authority that they do.
 - Open the PR as a **draft**. It rides the own-PR ladder to *mergeable ∧ green ∧
   reviewed* and is **held even in an `automerge: true` repo** — the CLI already
   exempts `autophagy/` heads from the automerge terminal (LLP 0036).
+- Before opening it, follow [the shared PR publishing procedure](references/pr-publishing.md)
+  against `origin/<DEFAULT>` (LLP 0070).
 
 Then fan in as usual: verify from `gh` that the PR exists (or that the worker
 reported a no-op), emit `tick: family=autophagy action=cleanup detail=pr#<N>` (or
@@ -391,6 +394,14 @@ model here; you only re-verify and label what it returns stuck.
 
 Then the change set's PR is driven by **reconcilePR** below (the shared spine).
 
+## Publish Neutral-authored PRs — concise body + final cleanup (LLP 0070)
+
+Before creating any new task, change-set, issue-fix, or autophagy PR, read and
+follow [the shared PR publishing procedure](references/pr-publishing.md). It is
+the single source of truth for the `unslop` pass, final verification, derived
+production-code stats, two-section body, and preserved machine trailers. Reusing
+an existing PR skips publication; do not churn its human-authored body.
+
 ## Fan-out worker: reconcilePR — PR health (shared spine, LLP 0009)
 
 Goal for **every in-scope open PR** (own `integration/*` change sets AND
@@ -469,7 +480,9 @@ which replies are new.
 
 - **First, ensure the PR exists.** A change set with merged tasks but no PR needs a
   **draft** PR `integration/<slug> → DEFAULT` (`gh pr list --head …` else
-  `gh pr create --draft --base DEFAULT --head …`), body ending `Change-Set: <slug>`.
+  follow the shared publishing procedure against `origin/<DEFAULT>`, then
+  `gh pr create --draft --base DEFAULT --head … --body-file …` with the body ending
+  `Change-Set: <slug>`.
   A `fix/issue-*` PR is created by the issue-fix worker (below) with `Fixes #N`.
 - **`merge-base`** (rung 1, `BEHIND` — stale, no conflict; emitted only when
   `mergeQueue` is off): **mechanical, no agent**,
@@ -670,9 +683,10 @@ of this tick's admission slots (skip the rest until capacity opens; skip
 3. **Ground-truth gate (LLP 0002):** no reproducing failing-then-passing test ⇒ no
    credible fix ⇒ **no PR**. Label the issue `neutral:stuck` and surface it. Never
    open a PR on an unproven fix.
-4. With a proven fix: open the PR `fix/issue-N → DEFAULT`, body ending **`Fixes #N`**
-   (GitHub closes the issue *on merge*; neutral never closes it). Hand off to
-   `reconcilePR`.
+4. With a proven fix: follow the shared publishing procedure against
+   `origin/<DEFAULT>`, then open the PR `fix/issue-N → DEFAULT`, body ending
+   **`Fixes #N`** (GitHub closes the issue *on merge*; neutral never closes it).
+   Hand off to `reconcilePR`.
 5. **Escalate, don't force:** if the "bug" is really a missing feature or an
    architectural change, file a **request LLP** instead — it re-enters the pipeline
    family, not the maintenance family.

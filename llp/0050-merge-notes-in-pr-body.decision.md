@@ -6,6 +6,7 @@
 **Author:** Phil / Claude
 **Date:** 2026-07-30
 **Related:** 0002, 0003, 0009, 0030, 0041, 0049
+**Extended-by:** LLP 0070 — new PR bodies are concise; this mechanical warning block may still be prepended
 
 ## Context
 

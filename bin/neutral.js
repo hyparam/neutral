@@ -14,6 +14,7 @@ import { idleCommand } from '../src/commands/idle.js'
 import { startCommand } from '../src/commands/start.js'
 import { observeCommand } from '../src/commands/observe.js'
 import { enqueueCommand } from '../src/commands/enqueue.js'
+import { prStatsCommand } from '../src/commands/pr-stats.js'
 
 const USAGE = `neutral — declarative reconcilers for the LLP -> PR pipeline
 
@@ -28,6 +29,7 @@ usage:
   neutral ready <slug> [--json]  the unblocked-open task queue for a change set
   neutral prs [--json]           in-scope open PRs with the reconcilePR rung to act on
   neutral enqueue <pr> <sha>     add an approved exact head to GitHub's merge queue
+  neutral pr-stats <base> [head] production-code diff lines, excluding tests + LLPs
   neutral issues [--json]        open neutral:fix issues with their fix-attempt state
   neutral idle [--json]          is the tick idle, and should it recycle context (LLP 0013)
   neutral llp <number> [--json]  inspect one LLP: metadata, role, coverage
@@ -53,6 +55,7 @@ async function main(argv) {
     case 'ready': return readyCommand(repo, rest)
     case 'prs': return prsCommand(repo, rest)
     case 'enqueue': return enqueueCommand(repo, rest)
+    case 'pr-stats': return prStatsCommand(repo, rest)
     case 'issues': return issuesCommand(repo, rest)
     case 'idle': return idleCommand(repo, rest)
     case 'llp': return llpCommand(repo, rest)
