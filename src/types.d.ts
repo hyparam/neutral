@@ -219,8 +219,8 @@ export interface RungDecision {
    * wait | merge-base | resolve-conflict | fix-ci | review | triage | assess-ship-risk | ready-hold | merge | enqueue |
    * stuck-report | unstick | held | approve | request-changes | mark-adopted.
    * `triage` (review rounds exhausted) is where a blanket `stuck` used to be: the worker
-   * judges the residual findings and either defers non-blockers to a `neutral:fix` follow-up
-   * (shipping the PR) or sets the `neutral:stuck` label itself (LLP 0017). `selectRung` no
+   * judges the residual findings and either defers each non-blocker to its own `neutral:fix`
+   * follow-up (shipping the PR) or sets the `neutral:stuck` label itself (LLP 0017/0071). `selectRung` no
    * longer emits `stuck` as an action — the label, once set, short-circuits into a three-way
    * classifier over the comment thread (LLP 0026/0027): `stuck-report` when no marker-signed
    * stuck report exists yet (post it), `unstick` when a human replied after the latest report

@@ -26,12 +26,13 @@ const REVIEW_MARKER_RE = /<!--\s*neutral-review:\s*([0-9a-f]{7,40})(?:\s+(clean|
 // @ref LLP 0062#assessment-record [implements]
 const SHIP_RISK_MARKER_RE = /<!--\s*neutral-ship-risk:\s*([0-9a-f]{7,40})\s+(low|medium|high|unknown)\s+e([1-5])\s+v1\s*-->/gi
 
-// `<!-- neutral-triage: <headSha> #M -->` — the head at which the review fix-loop hit
+// `<!-- neutral-triage: <headSha> #M #N ... -->` — the head at which the review fix-loop hit
 // `maxReviewRounds` and the residual findings were judged non-blocking and DEFERRED to
-// follow-up issue #M. Head-keyed exactly like the review marker: an unchanged head reads
-// as reviewed (the findings rode off to #M), a new head re-opens review. `#M` is the
-// follow-up issue, carried for audit (the SHA is what the predicate keys on).
+// one finding-specific follow-up issue each. Head-keyed exactly like the review marker: an
+// unchanged head reads as reviewed, while a new head re-opens review. Issue numbers are
+// carried for audit; the SHA is what the predicate keys on.
 // @ref LLP 0017 [implements] — triage-at-cap defers non-blockers and ships
+// @ref LLP 0071#triage-fan-out [implements] — the marker carries every finding issue
 const TRIAGE_MARKER_RE = /<!--\s*neutral-triage:\s*([0-9a-f]{7,40})\b[^>]*-->/gi
 
 // `<!-- neutral-stuck: <headSha> -->` — signs the STUCK REPORT comment (LLP 0026): the
@@ -180,8 +181,8 @@ export function reviewedAtHead(body, comments, headSha) {
 
 /**
  * SHAs of every neutral-triage marker in a PR body, in document order. Each marks a head
- * at which review rounds were exhausted and the residual findings were deferred to a
- * `neutral:fix` follow-up (LLP 0017).
+ * at which review rounds were exhausted and the residual findings were deferred to
+ * finding-specific `neutral:fix` follow-ups (LLP 0017/0071).
  * @param {string} body
  * @returns {string[]}
  */
@@ -477,7 +478,8 @@ export function selectRung(pr, maxReviewRounds = DEFAULT_REVIEW_ROUNDS, automerg
   // Rung 3 — reviewed (keyed to the current head SHA). A head counts as reviewed by a
   // clean review record in the thread (LLP 0028/0029; legacy body markers still read)
   // OR a triage marker: at the round cap, residual findings judged non-blocking are
-  // deferred to a `neutral:fix` follow-up and the head ships (LLP 0017), so a triage
+  // deferred to finding-specific `neutral:fix` follow-ups and the head ships
+  // (LLP 0017/0071), so a triage
   // marker satisfies this rung just as a clean review record does.
   // @ref LLP 0017 [implements] — triage at the cap replaces a blanket stuck
   if (!reviewedAtHead(pr.body, pr.comments, pr.headSha) && !triagedAtHead(pr.body, pr.headSha)) {

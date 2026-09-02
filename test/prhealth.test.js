@@ -300,8 +300,9 @@ test('a thread grant raises the review cap past maxReviewRounds (LLP 0059)', () 
   assert.match(d.reason, /3 review round\(s\) exhausted \(2 \+ 1 granted in-thread\)/)
 })
 
-test('triage markers: parse all SHAs, match any against head, ignore the #issue suffix', () => {
-  const body = 'review\n<!-- neutral-review: abc0001 -->\ntriage\n<!-- neutral-triage: beef999 #42 -->\n'
+// @ref LLP 0071#triage-fan-out [tests] — all finding issue numbers may ride one head-keyed completion marker
+test('triage markers: parse all SHAs, match any against head, ignore all #issue suffixes', () => {
+  const body = 'review\n<!-- neutral-review: abc0001 -->\ntriage\n<!-- neutral-triage: beef999 #42 #43 #44 -->\n'
   assert.deepEqual(parseTriageMarkers(body), ['beef999'])
   assert.deepEqual(parseTriageMarkers(''), [])
   // a triage marker covering head satisfies the reviewed rung even with an issue suffix

@@ -58,6 +58,10 @@ Designer may therefore mint at most that many change sets, not the whole backlog
 Once a branch is minted it appears in the next observation and consumes its slot.
 The cap throttles intake only; it is never a reason to stop healing admitted work.
 
+> **Extended-by [LLP 0071](0071-one-deferred-finding-per-fix-pr.spec.md):** triage
+> records one issue per deferred finding. Each resulting issue-fix branch is an
+> independent admission consumer when it starts.
+
 <a id="merge-queue"></a>
 ### Merge queue
 

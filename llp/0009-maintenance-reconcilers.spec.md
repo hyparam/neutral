@@ -130,6 +130,10 @@ per-tick fan-out of LLP 0010.)
    > `<!-- neutral-triage: <headSHA> #M -->` marker) and the PR ships (held for a human);
    > only a true production-risk blocker yields `neutral:stuck`.
 
+   > **Extended-by [LLP 0071](0071-one-deferred-finding-per-fix-pr.spec.md):** a
+   > safe triage fans out one detailed issue per deferred finding; Issue-fix
+   > produces one finding-specific PR for each issue.
+
    > **Extended-by [LLP 0028](0028-review-record-comment.decision.md) /
    > [LLP 0029](0029-verdict-carrying-review-rounds.decision.md):** the review record
    > moves from the PR body to a **marker-signed comment** — the comment *is* the round

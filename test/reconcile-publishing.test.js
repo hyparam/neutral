@@ -41,3 +41,29 @@ test('unslop is bundled for the headless loop and protects functional annotation
   assert.match(skill, /Preserve functional comments and annotations such as `@ref`/)
   assert.match(dockerfile, /\.claude\/skills\/unslop \/home\/neutral\/\.claude\/skills\/unslop/)
 })
+
+// @ref LLP 0071#triage-fan-out [tests] — deferred review work fans out at finding granularity and retries by stable identity
+test('triage creates one detailed, idempotent issue per deferred finding', () => {
+  const triage = reconcile.slice(reconcile.indexOf('- **`triage`**'), reconcile.indexOf('- **`assess-ship-risk`**'))
+
+  assert.match(triage, /\*\*one issue per finding\*\*/)
+  assert.match(triage, /neutral-deferred-finding: pr#N <the head SHA> finding:<ordinal>/)
+  assert.match(triage, /source PR and head, severity, file:line or symbol, observed evidence and behavior/)
+  assert.match(triage, /acceptance condition/)
+  assert.match(triage, /finding → issue link/)
+  assert.match(triage, /neutral-triage: <the head SHA> #M #N \.\.\./)
+  assert.doesNotMatch(triage, /Follow-up: deferred review findings/)
+})
+
+// @ref LLP 0071#fix-pr [tests] — issue-fix preserves the one-finding scope and carries concrete detail into the PR
+test('issue-fix creates one specifically titled and detailed PR per issue', () => {
+  const issueFix = reconcile.slice(reconcile.indexOf('## Fan-out worker: Issue-fix'), reconcile.indexOf('## Fan-in:'))
+
+  assert.match(issueFix, /fetch the issue title and full body/)
+  assert.match(issueFix, /Fix #N: <issue title>/)
+  assert.match(issueFix, /concrete problem and evidence/)
+  assert.match(issueFix, /actual fix and verification/)
+  assert.match(issueFix, /sole closing trailer/)
+  assert.match(issueFix, /Do not fold sibling deferred findings/)
+  assert.match(publishing, /One issue-fix PR has one\s+closing issue/)
+})

@@ -153,10 +153,10 @@ the branch/PR forms deduplicated. `neutral:stuck` work awaiting a human is liste
   Designer groups. Within each class use the report's stable order. Decrement the
   local reservation when a branch is actually created; a failed/no-op creation
   consumes none. Do not refill from a fresh observation mid-tick.
-- **At `available: 0`, admit nothing new.** A triage worker still records a
-  non-blocking finding as a `neutral:fix` issue, but do not dispatch Issue-fix for
-  it until a later tick exposes a slot. This is how review feedback becomes backlog
-  instead of recursively becoming more PRs.
+- **At `available: 0`, admit nothing new.** A triage worker still records each
+  non-blocking finding as its own `neutral:fix` issue, but do not dispatch Issue-fix
+  for any of them until a later tick exposes a slot. This is how review feedback
+  becomes backlog instead of recursively becoming more PRs.
 
 The Designer may partition the whole backlog for reasoning, but mints no more than
 the slots reserved for Designer groups. The remainder stays uncovered and is
@@ -540,13 +540,21 @@ which replies are new.
   could cause a *production* defect (wrong behaviour, data loss, a security hole, a crash, a
   perf regression past budget) — or a **preference** (style, naming, a test nicety, a
   non-behavioural refactor). Then, **all-or-nothing**:
-  - **Every residual finding is non-blocking** → the PR can merge safely. **Idempotently**
-    open a follow-up issue (skip if an open `neutral:fix` follow-up for this PR already
-    exists): `gh issue create` titled `Follow-up: deferred review findings from PR #N`,
-    labelled `neutral:fix`, body enumerating each deferred finding **+ a backlink to PR #N**.
-    Comment on the PR linking the issue. Then append `<!-- neutral-triage: <the head SHA> #M -->`
-    to the PR body (`gh pr edit N --body …`) — **last**, so a partial failure re-triages
-    rather than skipping. The marker satisfies the reviewed rung; **next tick** the PR is
+  - **Every residual finding is non-blocking** → the PR can merge safely. Fan out
+    **one issue per finding** (LLP 0071), never a residual-findings bundle. In the
+    last review's stable order, assign each finding a 1-based ordinal and idempotently
+    find or create one issue labelled `neutral:fix`. Match retries across issues in
+    all states by the exact body marker
+    `<!-- neutral-deferred-finding: pr#N <the head SHA> finding:<ordinal> -->`.
+    Title each issue with the finding's concrete summary. Its body must include the
+    source PR and head, severity, file:line or symbol, observed evidence and behavior,
+    why deferral is safe, an observable acceptance condition, and the identity marker.
+    After every finding has an issue, comment on the PR with a finding → issue link
+    for each one. Then append
+    `<!-- neutral-triage: <the head SHA> #M #N ... -->` containing **every** issue
+    number to the PR body (`gh pr edit N --body …`) — **last**, so a partial failure
+    re-triages and reuses the marked issues rather than duplicating them. The marker
+    satisfies the reviewed rung; **next tick** the PR is
     reviewed-clean; next tick the ship-risk gate assesses it and applies the
     configured threshold plus automerge authority. With the gate explicitly off,
     the legacy terminal may enqueue where automatic queue landing is configured. The
@@ -673,21 +681,28 @@ For each issue `neutral issues --json` reports as **`needs-fix`** that received 
 of this tick's admission slots (skip the rest until capacity opens; skip
 `attempt-exists` — resume via `reconcilePR`; skip `stuck` — a human must look):
 
-1. **Idempotent intake** (the CLI already checked): `fix/issue-N` branch off the
+1. **Read the work item:** fetch the issue title and full body before dispatch.
+   For a deferred review finding, its source location, evidence, behavior, and
+   acceptance condition are the fix contract (LLP 0071).
+2. **Idempotent intake** (the CLI already checked): `fix/issue-N` branch off the
    default branch (resume `origin/fix/issue-N` if it exists).
-2. Dispatch ONE fix agent (**worker tier — `opus`**, LLP 0020) in its own worktree
+3. Dispatch ONE fix agent (**worker tier — `opus`**, LLP 0020) in its own worktree
    under the **diagnose/bugfix discipline** — *reproduce → root-cause → fix*, where
    **reproduce = a regression test that FAILS on current code and PASSES after the
    fix**. The agent works out
    how to run the tests in context (no configured command); its local run is advisory.
-3. **Ground-truth gate (LLP 0002):** no reproducing failing-then-passing test ⇒ no
+4. **Ground-truth gate (LLP 0002):** no reproducing failing-then-passing test ⇒ no
    credible fix ⇒ **no PR**. Label the issue `neutral:stuck` and surface it. Never
    open a PR on an unproven fix.
-4. With a proven fix: follow the shared publishing procedure against
-   `origin/<DEFAULT>`, then open the PR `fix/issue-N → DEFAULT`, body ending
+5. With a proven fix: follow the shared publishing procedure against
+   `origin/<DEFAULT>`, then open exactly one PR `fix/issue-N → DEFAULT` titled
+   **`Fix #N: <issue title>`**. Its `Feature or issue` paragraph carries the
+   concrete problem and evidence from that issue; its `Solution` describes the
+   actual fix and verification. End the body with the sole closing trailer
    **`Fixes #N`** (GitHub closes the issue *on merge*; neutral never closes it).
-   Hand off to `reconcilePR`.
-5. **Escalate, don't force:** if the "bug" is really a missing feature or an
+   Do not fold sibling deferred findings into its declared scope. Hand off to
+   `reconcilePR`.
+6. **Escalate, don't force:** if the "bug" is really a missing feature or an
    architectural change, file a **request LLP** instead — it re-enters the pipeline
    family, not the maintenance family.
 

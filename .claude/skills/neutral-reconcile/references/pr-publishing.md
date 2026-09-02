@@ -38,6 +38,11 @@ generic boilerplate. For an autophagy PR, the Solution bullets carry LLP 0036's
 required reachability proof and may exceed three only when every trim needs its
 own compact proof.
 
+For an issue-fix PR, use `Fix #N: <issue title>` as the PR title. The Feature or
+issue paragraph names that issue's concrete behavior and evidence; the Solution
+states the implemented fix and verification result. One issue-fix PR has one
+closing issue and does not absorb sibling deferred findings (LLP 0071).
+
 Append the applicable machine trailer after a blank line:
 
 - task PR: `Task-Id: <id>`

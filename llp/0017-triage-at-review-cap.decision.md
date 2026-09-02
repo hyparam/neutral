@@ -30,6 +30,10 @@ This decision inserts a **triage** step at the cap. Before parking, neutral re-j
 they ride the **issue-fix** reconciler, so a deferred finding reaches neutral state only
 when its `neutral:fix` issue has a fix attempt (the two invariants compose — LLP 0008).
 
+> **Extended-by [LLP 0071](0071-one-deferred-finding-per-fix-pr.spec.md):** the
+> follow-up is now one specific `neutral:fix` issue and one fix PR per deferred
+> finding, rather than one bundle for the source PR.
+
 > **Extended-by [LLP 0060](0060-admission-control-and-merge-queue.decision.md):**
 > the follow-up issue is still recorded immediately, but its fix attempt waits for
 > `maxActiveWork` admission. Review feedback cannot bypass the global work cap.
