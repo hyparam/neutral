@@ -34,7 +34,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # hypaware records each loop's Claude traffic (gateway + transcripts) into a
 # local cache and, when a remote token is provided, forwards it to the central
 # HypAware server.
-RUN npm install -g @anthropic-ai/claude-code hypaware
+ARG CLAUDE_CODE_VERSION=latest
+ARG HYPAWARE_VERSION=latest
+RUN npm install -g @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION} hypaware@${HYPAWARE_VERSION}
+
+ARG NEUTRAL_REVISION=unknown
+LABEL org.opencontainers.image.revision=${NEUTRAL_REVISION}
 
 # Non-root user: the headless loop runs with --dangerously-skip-permissions,
 # which Claude Code refuses to run as root.

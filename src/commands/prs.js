@@ -34,7 +34,7 @@ const OWN_HEAD_RE = /^(integration\/|fix\/issue-|autophagy\/)/
  * not completion, is what the label records.
  * @param {string} repo
  * @param {typeof run} [exec]
- * @returns {Promise<Array<{number: number, head: string, base: string, isDraft: boolean, headSha: string, foreign: boolean, reviewOnly: boolean, adopted: boolean, canPush: boolean, stuck: boolean, queued: boolean, guidance: number, markAdopted: boolean, rung: string, action: string, reason: string, approved?: boolean, shipRisk?: string, shipRiskEvidence?: number, shipRiskEligible?: boolean, wouldAutomerge?: boolean}>>}
+ * @returns {Promise<Array<{number: number, head: string, base: string, isDraft: boolean, headSha: string, foreign: boolean, reviewOnly: boolean, adopted: boolean, canPush: boolean, stuck: boolean, queued: boolean, guidance: number, markAdopted: boolean, rung: string, action: string, reason: string, approved?: boolean, canFix?: boolean, shipRisk?: string, shipRiskEvidence?: number, shipRiskEligible?: boolean, wouldAutomerge?: boolean}>>}
  */
 export async function collectPRs(repo, exec = run) {
   const { maxReviewRounds, automerge, mergeQueue, shipRisk } = loadConfig(repo)
@@ -42,7 +42,7 @@ export async function collectPRs(repo, exec = run) {
   // Own by head-branch ownership; delegated only when a maintainer explicitly labelled it —
   // `neutral:adopt` for full heal (LLP 0025) or `neutral:review` for review-only (LLP 0032).
   const inScope = open.filter(p => OWN_HEAD_RE.test(p.headRefName) || p.labels.includes(ADOPT_LABEL) || p.labels.includes(REVIEW_LABEL))
-  /** @type {Array<{number: number, head: string, base: string, isDraft: boolean, headSha: string, foreign: boolean, reviewOnly: boolean, adopted: boolean, canPush: boolean, stuck: boolean, queued: boolean, guidance: number, markAdopted: boolean, rung: string, action: string, reason: string, approved?: boolean, shipRisk?: string, shipRiskEvidence?: number, shipRiskEligible?: boolean, wouldAutomerge?: boolean}>} */
+  /** @type {Array<{number: number, head: string, base: string, isDraft: boolean, headSha: string, foreign: boolean, reviewOnly: boolean, adopted: boolean, canPush: boolean, stuck: boolean, queued: boolean, guidance: number, markAdopted: boolean, rung: string, action: string, reason: string, approved?: boolean, canFix?: boolean, shipRisk?: string, shipRiskEvidence?: number, shipRiskEligible?: boolean, wouldAutomerge?: boolean}>} */
   const out = []
   for (const p of inScope) {
     const obs = await viewPR(repo, p.number, exec)

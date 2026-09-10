@@ -87,3 +87,5 @@ siblings.
 - **R5 — unchanged safety boundary.** Any true blocker still sticks the source
   PR without creating deferred work; all findings must be non-blocking before
   fan-out begins.
+
+> Extended-by: LLP 0075 — [Bounded review work](0075-bounded-review-work.spec.md): each deferral keeps its own issue; preferences remain backlog without automatic neutral:fix admission.

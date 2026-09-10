@@ -51,7 +51,7 @@ integration branches, active-work limits, and why eligible work may wait.
   `0017-triage-at-review-cap.decision.md`, `0018-self-clearing-blocked-prs.rfc.md`,
   `0019-automerge.decision.md`, `0026-stuck-report.decision.md`,
   `0027-comment-unstick.decision.md`, `0029-verdict-carrying-review-rounds.decision.md`,
-  `0058-adopted-prs-are-own.decision.md`, `0059-review-round-grants.decision.md`,
+  `0075-bounded-review-work.spec.md`, `0058-adopted-prs-are-own.decision.md`, `0059-review-round-grants.decision.md`,
   `0060-admission-control-and-merge-queue.decision.md`,
   `0061-explicit-merge-queue-enqueue.decision.md`,
   `0062-ship-risk-shadow-gate.spec.md`,

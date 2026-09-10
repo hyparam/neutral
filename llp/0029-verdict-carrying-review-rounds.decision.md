@@ -61,3 +61,5 @@ head as round N+1 — unchanged from the body-marker flow.
 - The reconcile skill instructs workers to post the record **whatever the
   outcome** — the comment is the round (LLP 0028), success is a separate fact the
   SHA comparison derives.
+
+> Extended-by: LLP 0075 — [Bounded review work](0075-bounded-review-work.spec.md): unchanged findings route to disposition without adding another review round.

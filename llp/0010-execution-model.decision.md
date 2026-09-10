@@ -118,3 +118,5 @@ growth and is the productionization path, but abandons the persistent single-ses
   the most out-of-state gap and act".
 - **Partial failure is normal.** A fan-out worker that fails leaves its gap open;
   the next tick re-observes and re-dispatches (idempotent, LLP 0001).
+
+> Extended-by: LLP 0075 — [Bounded review work](0075-bounded-review-work.spec.md): worker completion uses bounded harness waits and the shared tool hook.

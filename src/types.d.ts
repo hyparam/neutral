@@ -165,6 +165,36 @@ export interface ReviewRecord {
   clean: boolean
 }
 
+export interface DeferredIssue {
+  ordinal: number
+  title: string
+  marker: string
+  labels: string[]
+  body: string
+}
+
+export interface WaitHookInput {
+  tool_name?: string
+  tool_input?: Record<string, unknown>
+}
+
+export interface WaitHookResult {
+  hookSpecificOutput: {
+    hookEventName: 'PreToolUse'
+    updatedInput?: Record<string, unknown>
+    permissionDecision?: 'deny'
+    permissionDecisionReason?: string
+  }
+}
+
+export interface WorkerResult {
+  exitCode: number
+  timedOut: boolean
+  stdout: string
+  stderr: string
+  truncated: boolean
+}
+
 /** One independent final-head ship-risk assessment recorded in a marker-signed PR comment (LLP 0062). */
 export interface ShipRiskRecord {
   sha: string
@@ -213,14 +243,16 @@ export interface PrObservation {
 
 /** The single rung action reconcilePR takes on a PR this tick (LLP 0009). */
 export interface RungDecision {
+  /** Triage may attempt current-PR fixes only while a verification round remains (LLP 0075). */
+  canFix?: boolean
   /** mergeable | green | reviewed | ship-risk | terminal. */
   rung: string
   /**
    * wait | merge-base | resolve-conflict | fix-ci | review | triage | assess-ship-risk | ready-hold | merge | enqueue |
    * stuck-report | unstick | held | approve | request-changes | mark-adopted.
-   * `triage` (review rounds exhausted) is where a blanket `stuck` used to be: the worker
-   * judges the residual findings and either defers each non-blocker to its own `neutral:fix`
-   * follow-up (shipping the PR) or sets the `neutral:stuck` label itself (LLP 0017/0071). `selectRung` no
+   * `triage` (unchanged findings or review rounds exhausted) is where a blanket `stuck` used to be: the worker
+   * judges residual findings, records safe deferrals, or sets `neutral:stuck`. Only
+   * evidenced defects get automatic `neutral:fix` admission (LLP 0075). `selectRung` no
    * longer emits `stuck` as an action — the label, once set, short-circuits into a three-way
    * classifier over the comment thread (LLP 0026/0027): `stuck-report` when no marker-signed
    * stuck report exists yet (post it), `unstick` when a human replied after the latest report

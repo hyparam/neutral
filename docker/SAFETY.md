@@ -20,6 +20,12 @@ volumes and environment configuration:
 -v neutral-safety:/var/lib/neutral-safety
 ```
 
+For a code-only upgrade, pass the currently installed `CLAUDE_CODE_VERSION`
+and `HYPAWARE_VERSION` build arguments and set `NEUTRAL_REVISION` to the shipped
+commit. Preserve the running container's environment overrides, including
+whether capture is enabled. A known exhausted model allowance is a reason to
+leave the replacement held after initialization, not to rearm repeatedly.
+
 Keep that volume for the lifetime of the fleet, including image upgrades,
 container recreation, and moves to another host. The image now starts as root;
 do not override its user, entrypoint, PID namespace, or enable Docker's `--init`

@@ -135,6 +135,26 @@ Workflow concurrency cap is hit, **priority is only queue order** (held-PR
 dependents → review → implement → issue-fix → design); it no longer selects a single
 action.
 
+### Worker completion (LLP 0075)
+
+Include this completion contract in every dispatched worker prompt:
+
+> Await background agents through the harness completion notification or
+> `TaskOutput` with the task ID and `block: true, timeout: 600000`. Finish
+> independent work first. For a CLI reviewer, run
+> `neutral run-worker --timeout-ms 1800000 -- <reviewer-command> <args...>`
+> once using Bash background execution; await that task's completion. The
+> runner buffers bounded output and returns the real exit status or timeout.
+> Preserve full review artifacts on disk. A timeout or failed reviewer leaves
+> the review incomplete; return the failure without a clean marker. For
+> external CI, return and let the next reconcile tick observe it.
+
+The container installs a shared tool hook that forces blocking `TaskOutput`
+waits and rejects standalone waiting echoes. It applies to review children as
+well as the coordinator. The runner owns the process timeout; the model does
+not poll it. A `TaskOutput` timeout is a bounded observation, not permission to
+restart the still-running worker.
+
 ### Admission — heal broadly, start narrowly (LLP 0060)
 
 `observe.admission` is the one authority for new work. Its active surfaces already
@@ -155,8 +175,8 @@ the branch/PR forms deduplicated. `neutral:stuck` work awaiting a human is liste
   local reservation when a branch is actually created; a failed/no-op creation
   consumes none. Do not refill from a fresh observation mid-tick.
 - **At `available: 0`, admit nothing new.** A triage worker still records each
-  non-blocking finding as its own `neutral:fix` issue, but do not dispatch Issue-fix
-  for any of them until a later tick exposes a slot. This is how review feedback
+  deferred finding as its own issue. Only evidenced behavioral defects receive
+  `neutral:fix`; their repair waits until a later tick exposes a slot. This is how review feedback
   becomes backlog instead of recursively becoming more PRs.
 
 The Designer may partition the whole backlog for reasoning, but mints no more than
@@ -517,8 +537,10 @@ which replies are new.
   clean, isolated checkout. Run the review — `dual-review` when `command -v codex`
   succeeds, else `code-review` — on the PR number; the review itself is **worker-tier**
   work (LLP 0020 — Codex, when present, is the independent second family). **Capture
-  the head SHA you reviewed** (the `headSha` from `neutral prs`). For each actionable
-  finding, dispatch a fix (**mechanical tier — `sonnet`**; a fix is positively verified
+  the head SHA you reviewed** (the `headSha` from `neutral prs`). For each finding, record a numbered disposition: `fix` for a current-PR
+  defect, `defer` for safely out-of-scope work, `reject` with evidence, or
+  `blocker` for an unresolved shipping risk. A pre-existing defect can still
+  block this PR when the change exposes it. For each `fix`, dispatch a fix (**mechanical tier — `sonnet`**; a fix is positively verified
   against the tree, so a weak attempt can't slip through — and round 2's fixes climb a
   tier per LLP 0021) and **positively verify** it landed (the named file/symbol
   changed in the committed tree vs pre-fix HEAD — a green suite is not proof a fix
@@ -534,44 +556,33 @@ which replies are new.
   would re-review the same head forever. No separate `gh pr edit`: the comment is
   the single act. If you fixed findings the head has since moved, so the next tick
   re-reviews the new head (round 2); if the review was `clean` the record covers
-  the current head and the PR is terminal. The CLI bounds this to **N=2** rounds
-  before it returns `triage` — plus any budget a human granted in the thread with a
+  the current head. If findings remain at an unchanged head, the next tick
+  performs narrow triage instead of repeating the review. The CLI bounds full reviews to **N=2** rounds
+  and also returns `triage` for unchanged findings — plus any budget a human granted in the thread with a
   `neutral: rounds +N` comment (LLP 0059; the CLI folds grants into the cap, so trust
   the `action` field as ever — no skill-side arithmetic).
-- **`triage`** (rung 3, review rounds exhausted at an unreviewed head): the fix-loop hit
-  the review-round cap (`maxReviewRounds` + in-thread grants, LLP 0059) with findings
-  still open. **Before parking the PR, judge whether it can
-  ship safely** (LLP 0017). Dispatch ONE agent (**judgment tier — `claude-fable-5-1`**, LLP 0020 —
-  a mis-classified blocker ships a production defect; this call is not machine-checkable)
-  in its **own worktree** to re-read every
-  **unresolved** finding from the last review and classify each as a **true blocker** —
-  could cause a *production* defect (wrong behaviour, data loss, a security hole, a crash, a
-  perf regression past budget) — or a **preference** (style, naming, a test nicety, a
-  non-behavioural refactor). Then, **all-or-nothing**:
-  - **Every residual finding is non-blocking** → the PR can merge safely. Fan out
-    **one issue per finding** (LLP 0071), never a residual-findings bundle. In the
-    last review's stable order, assign each finding a 1-based ordinal and idempotently
-    find or create one issue labelled `neutral:fix`. Match retries across issues in
-    all states by the exact body marker
-    `<!-- neutral-deferred-finding: pr#N <the head SHA> finding:<ordinal> -->`.
-    Title each issue with the finding's concrete summary. Its body must include the
-    source PR and head, severity, file:line or symbol, observed evidence and behavior,
-    why deferral is safe, an observable acceptance condition, and the identity marker.
-    After every finding has an issue, comment on the PR with a finding → issue link
-    for each one. Then append
-    `<!-- neutral-triage: <the head SHA> #M #N ... -->` containing **every** issue
-    number to the PR body (`gh pr edit N --body …`) — **last**, so a partial failure
-    re-triages and reuses the marked issues rather than duplicating them. The marker
-    satisfies the reviewed rung; **next tick** the PR is
-    reviewed-clean; next tick the ship-risk gate assesses it and applies the
-    configured threshold plus automerge authority. With the gate explicitly off,
-    the legacy terminal may enqueue where automatic queue landing is configured. The
-    deferred findings ride the issue-fix reconciler (the invariants compose — LLP 0008).
-  - **Any residual finding is a true blocker** → it cannot merge safely. Label the PR
-    `neutral:stuck` and post the **stuck report** (LLP 0026, format above): why each
-    blocker is a production risk, the non-blockers too (the human sees the whole PR),
-    and what decision or input unsticks it. Surface it — do not split, do not churn.
-  Skip entirely if a `neutral-triage` marker already covers the head (already triaged).
+- **`triage`** (unchanged reviewed findings, or review rounds exhausted):
+  dispatch ONE independent **judgment-tier** worker in its own worktree.
+  Read [references/finding-disposition.md](references/finding-disposition.md)
+  for the procedure and JSON schema. Inspect the last review's numbered
+  findings, cited code and evidence; widen only to resolve a specific
+  uncertainty. Assign every finding `fix`, `defer`, `reject`, or `blocker`.
+  Use the CLI's `canFix` field for repair authority; the worker never grants
+  itself another review round. A fix moves the head and returns to observation.
+  Any unresolved blocker holds the PR with `neutral:stuck` and a stuck report.
+  When every finding is safely deferred or rejected, use `neutral defer-findings`
+  to create **one issue per finding** being deferred; rejected findings need
+  evidence but no issue. The controller admits evidenced behavioral defects
+  with `neutral:fix` and leaves preferences as ordinary backlog.
+  Retries match `neutral-deferred-finding: pr#N <the head SHA> finding:<ordinal>`.
+  Each issue carries source PR and head, severity, file:line or symbol, observed evidence and behavior,
+  safe-deferral rationale, and an acceptance condition. Post a finding → issue link
+  for each deferral and evidence for each rejection. Re-read the head immediately
+  before appending `<!-- neutral-triage: <the head SHA> #M #N ... -->` to the PR
+  body **last**, preserving its existing content. All-rejected findings use the
+  same marker with no issue numbers. A stale head returns without completion.
+  This disposition is not another review round. Ship-risk still independently
+  assesses the exact final head on the next tick. Skip if already triaged there.
 - **`assess-ship-risk`** (final risk gate, reviewed-clean exact head): invoke
   `/ship-risk <PR number> <headSha>` in the PR's clean isolated worktree. The skill
   performs an independent proof-carrying assessment and posts one
@@ -633,7 +644,7 @@ the verdict, but **never push to the branch**, even when push access exists (LLP
 
 **An adopted PR is an own PR — `foreign: false` (LLP 0058).** A pushable `neutral:adopt`
 delegation is tagged `[adopt]` and rides the ordinary own-PR ladder above **end-to-end**:
-heal every rung and **push the fixes to the contributor's branch**, `triage` at the review
+heal every rung and **push the fixes to the contributor's branch**, `triage` for unchanged findings or at the review
 cap (LLP 0017), sync `neutral:approved` to the decision's `approved` field (LLP 0030), and
 take the own terminal — including the ship-risk assessment before
 `ready-hold`/`held`, `merge`, or `enqueue` where policy permits it

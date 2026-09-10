@@ -184,12 +184,12 @@ test('ship-risk-gated automerge fails closed above threshold, below evidence, un
   assert.equal(decide('<!-- neutral-ship-risk: abc1234 low e5 v1 -->', 'none').action, 'held')
 })
 
-test('selectRung: an unfixable head reaches triage at the cap instead of re-reviewing forever (LLP 0029)', () => {
+test('selectRung: an unchanged unfixable head reaches triage without another review (LLP 0075)', () => {
   // The churn this fixes: a blocked round left NO record, so the same head was
   // re-reviewed every tick and maxReviewRounds never tripped. Verdict-carrying
   // records count blocked rounds too.
   const round1 = [{ author: 'phil', body: '<!-- neutral-review: beef999 findings -->\nblocker', createdAt: '1' }]
-  assert.equal(selectRung(pr({ headSha: 'beef999', comments: round1 })).action, 'review') // round 2 may still fix it
+  assert.equal(selectRung(pr({ headSha: 'beef999', comments: round1 })).action, 'triage') // narrow disposition may still fix it
   const round2 = [...round1, { author: 'phil', body: '<!-- neutral-review: beef999 findings -->\nstill blocked', createdAt: '2' }]
   assert.equal(selectRung(pr({ headSha: 'beef999', comments: round2 })).action, 'triage')
 })

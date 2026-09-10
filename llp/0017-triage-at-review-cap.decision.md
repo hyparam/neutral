@@ -85,3 +85,5 @@ the PR, and the residual blocker is the thing to resolve. One clear outcome per 
   so a deferred finding is only "done" once its issue has a fix attempt.
 - `@ref LLP 0000 [constrained-by]` — §Autonomy holds: shipping means flip-ready + hold; neutral never merges.
 - `@ref LLP 0015 [constrained-by]` — this decision is the new request that extends LLP 0009; the old spec gains a forward-ref, its decided content untouched.
+
+> Extended-by: LLP 0075 — [Bounded review work](0075-bounded-review-work.spec.md): unchanged findings receive early disposition; only evidenced defects enter automatic repair.

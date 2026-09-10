@@ -16,10 +16,14 @@ import { observeCommand } from '../src/commands/observe.js'
 import { enqueueCommand } from '../src/commands/enqueue.js'
 import { prStatsCommand } from '../src/commands/pr-stats.js'
 import { safetyCommand } from '../src/safety-client.js'
+import { runWorkerCommand } from '../src/commands/run-worker.js'
+import { deferFindingsCommand } from '../src/commands/defer-findings.js'
 
 const USAGE = `neutral — declarative reconcilers for the LLP -> PR pipeline
 
 usage:
+  neutral run-worker --timeout-ms <ms> -- <command> [args...]  wait for one bounded worker result
+  neutral defer-findings <pr> <sha> <file.json>  record deferred findings; auto-admit evidenced defects only
   neutral safety status --json   inspect the container's persistent restart breaker
   neutral safety replace --session <name>  request a budgeted repair
   neutral safety recycle        request replacement of this loop generation
@@ -50,6 +54,8 @@ async function main(argv) {
   const repo = process.cwd()
 
   switch (cmd) {
+    case 'run-worker': return runWorkerCommand(rest)
+    case 'defer-findings': return deferFindingsCommand(repo, rest)
     case 'safety': return safetyCommand(rest)
     case 'start': return startCommand(repo, rest)
     case 'init': return initCommand(repo, rest)

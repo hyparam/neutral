@@ -493,8 +493,14 @@ export function selectRung(pr, maxReviewRounds = DEFAULT_REVIEW_ROUNDS, automerg
     // @ref LLP 0059#thread-grants [implements] — effective cap = config + grants
     const granted = grantedReviewRounds(pr.comments)
     const cap = maxReviewRounds + granted
+    // @ref LLP 0075#disposition [implements] — adjudicate existing findings instead of re-reading unchanged code
+    const latest = reviewRecords(pr.body, pr.comments).at(-1)
+    if (latest && !latest.clean && shaEq(latest.sha, pr.headSha)) {
+      return { rung: 'reviewed', action: 'triage', canFix: reviewRounds(pr.body, pr.comments) < cap,
+        reason: 'reviewed head unchanged — disposition existing findings; fix current-PR defects within the remaining budget, defer or reject with evidence, hold unresolved blockers' }
+    }
     if (reviewRounds(pr.body, pr.comments) >= cap) {
-      return { rung: 'reviewed', action: 'triage', reason: `${cap} review round(s) exhausted${granted ? ` (${maxReviewRounds} + ${granted} granted in-thread)` : ''} — triage residual findings (defer non-blockers to neutral:fix, else neutral:stuck)` }
+      return { rung: 'reviewed', action: 'triage', canFix: false, reason: `${cap} review round(s) exhausted${granted ? ` (${maxReviewRounds} + ${granted} granted in-thread)` : ''} — triage residual findings (record safe deferrals, auto-admit evidenced defects only, else neutral:stuck)` }
     }
     return { rung: 'reviewed', action: 'review', reason: 'head not yet reviewed — run the review, fix findings, post the marker-signed review record comment' }
   }

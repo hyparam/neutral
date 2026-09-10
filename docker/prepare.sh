@@ -47,3 +47,4 @@ for repo in $(printf '%s' "$NEUTRAL_REPOS" | tr ',' ' '); do
   trust_dir "$dir"
 done
 trust_dir /work
+node /opt/neutral/docker/install-worker-hooks.js
