@@ -45,9 +45,8 @@ rebuilds its world from recent channel history in its first tick (LLP 0039
 - `SLACK_ALLOWED_USER_IDS` — the only users you answer or relay for. The bridge
   already drops others on inbound; apply the same allowlist when you poll
   history yourself.
-- `NEUTRAL_MAYOR_CMD` — your own full respawn command (exported by the
-  entrypoint; single source of truth, LLP 0039 §mutual-coverage). Used only for
-  the end-of-tick recycle below.
+- `NEUTRAL_MAYOR_CMD` — the guarded recycle command. The safety controller
+  owns the pinned mayor launch command (LLPs 0039/0072).
 
 Slack calls are plain `curl`:
 
@@ -434,9 +433,11 @@ Recycle iff **quiet ∧ context > ~300k tokens**, else just return and let
 
 Nothing valuable lives only in your context — conversation is in Slack, fleet
 state is re-derivable, notification state is the keyed messages. The recycle is
-the tick's **last act**, targeting your own pane (no `-t`), via the one pinned
-respawn source (a hand-reconstructed command is LLP 0020's lesson):
+the tick's **last act**, through the shared safety controller (LLP 0072).
+The controller preserves the pinned mayor command and bounds all replacements:
 
 ```bash
-tmux respawn-pane -k "$NEUTRAL_MAYOR_CMD"
+neutral safety recycle
 ```
+
+A safety hold ends autonomous recovery; only the operator can rearm it.

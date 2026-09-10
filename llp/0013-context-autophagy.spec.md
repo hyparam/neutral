@@ -29,6 +29,9 @@ ground truth.
 
 ## Trigger
 
+> Extended-by: LLP 0072 — [Restart safeguard](0072-restart-burn-safeguard.rfc.md#budget)
+> adds a start ceiling that also applies to container context recycling.
+
 At **end-of-tick**, after fan-in and after emitting the tick's log lines, the
 orchestrator recycles iff:
 

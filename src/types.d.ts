@@ -103,7 +103,7 @@ export interface NeutralConfig {
   maxReviewRounds: number
   /** Opt-in (LLP 0019): terminal rung squash-merges a finished PR instead of holding it. */
   automerge: boolean
-  /** Opt-in (LLP 0060): use GitHub's merge queue for automerge landing and base freshness. */
+  /** Opt-in preference (LLP 0073): use the target's queue when available, else ordinary merging. */
   mergeQueue: boolean
   /** Final reviewed-head ship-risk policy (LLP 0062/0069). */
   shipRisk: ShipRiskConfig
@@ -227,8 +227,9 @@ export interface RungDecision {
    * or pushed since it (remove the label, ack, re-run the rungs next tick), else `held`.
    * `merge` is the terminal action only when the repo opted in (`automerge`, LLP 0019):
    * flip ready if draft, then squash-merge — instead of `ready-hold`/`held`.
-   * `enqueue` replaces `merge` when `mergeQueue` is also on (LLP 0060); an already
-   * queued PR returns `wait` with `approved: true` until GitHub lands or removes it.
+   * `enqueue` replaces `merge` when `mergeQueue` is on and GitHub confirms a queue
+   * (LLP 0073); an already queued PR returns `wait` with `approved: true` until
+   * GitHub lands or removes it.
    * `approve` / `request-changes` are the terminal + degraded actions for a *review-only*
    * foreign PR (LLP 0025/0058): they set the `neutral:approved` / `neutral:changes-requested`
    * verdict labels instead of readying or merging a contributor's PR. `request-changes` also

@@ -8,7 +8,7 @@
 // prose, so it is unit-tested rather than an agent's judgement.
 // @ref LLP 0009#pr-health-reconciler [implements]
 import { run } from '../git.js'
-import { listOpenPRs, listMergedAdoptPRs, viewPR, isPRQueued } from '../github.js'
+import { listOpenPRs, listMergedAdoptPRs, viewPR, viewPRMergeQueue } from '../github.js'
 import { selectRung, humanRepliesAfterStuckReport, needsAdoptedLabel } from '../prhealth.js'
 import { loadConfig, ADOPT_LABEL, ADOPTED_LABEL, REVIEW_LABEL, STUCK_LABEL } from '../config.js'
 import { AUTOPHAGY_PREFIX } from '../autophagy.js'
@@ -67,8 +67,14 @@ export async function collectPRs(repo, exec = run) {
     // automerge assessment would be a false candidate. Keep their terminal unchanged.
     /** @type {import('../types.d.ts').ShipRiskConfig} */
     const riskPolicy = obs.head.startsWith(AUTOPHAGY_PREFIX) ? { ...shipRisk, mode: 'off' } : shipRisk
-    const queued = mergeQueue && !foreign ? await isPRQueued(repo, obs.nodeId || '', exec) : false
-    const decision = selectRung({ ...obs, foreign, reviewOnly, queued }, maxReviewRounds, merge, mergeQueue, riskPolicy)
+    // Config expresses preference; only GitHub can establish queue availability.
+    // Re-observe if the PR moved between the health and queue reads.
+    // @ref LLP 0073#queue-observation [implements]
+    const queue = mergeQueue && !foreign ? await viewPRMergeQueue(repo, obs.nodeId || '', exec) : null
+    const currentQueue = queue && queue.headSha === obs.headSha && queue.base === obs.base ? queue : null
+    const queued = currentQueue?.queued ?? false
+    const queueMode = mergeQueue && !foreign ? currentQueue?.enabled ?? null : false
+    const decision = selectRung({ ...obs, foreign, reviewOnly, queued }, maxReviewRounds, merge, queueMode, riskPolicy)
     const stuck = obs.labels.includes(STUCK_LABEL)
     const guidance = humanRepliesAfterStuckReport(obs.comments).length
     // Engagement stamp (LLP 0037): observing an adopt-labelled PR IS taking it on, so

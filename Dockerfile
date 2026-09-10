@@ -11,6 +11,7 @@
 #     -e HYP_REMOTE_URL=https://hypaware.example.app \
 #     -e HYP_REMOTE_TOKEN=... \          # omit both HYP_* for local-only capture
 #     -v neutral-work:/work -v neutral-hyp:/home/neutral/.hyp \
+#     -v neutral-safety:/var/lib/neutral-safety \
 #     neutral-loop
 #
 # NEUTRAL_REPOS is baked as a default by the build arg but can be overridden at
@@ -22,7 +23,7 @@ FROM node:22-bookworm-slim
 # git + gh are the loop's ground-truth controllers; tmux is required for context
 # autophagy (the pane is the respawn mutex — LLP 0013).
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      git tmux curl ca-certificates jq procps \
+      git tmux curl ca-certificates jq procps util-linux \
   && curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
       -o /usr/share/keyrings/githubcli-archive-keyring.gpg \
   && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
@@ -43,7 +44,8 @@ RUN useradd -m -s /bin/bash neutral \
 
 # neutral itself — the deterministic CLI has no runtime deps, so a symlink is
 # the whole install.
-COPY --chown=neutral:neutral . /opt/neutral
+COPY . /opt/neutral
+RUN chown -R root:root /opt/neutral && chmod -R go-w /opt/neutral
 RUN ln -s /opt/neutral/bin/neutral.js /usr/local/bin/neutral
 
 USER neutral
@@ -81,8 +83,8 @@ ENV NEUTRAL_MODEL="claude-opus-5[1m]"
 ENV NEUTRAL_CLAUDE_ARGS="--dangerously-skip-permissions"
 
 # Watchdog: a third LLM loop that hourly heals wedged reconcile loops
-# (LLP 0034). Set NEUTRAL_WATCHDOG=0 to disable and restore the old
-# exit-when-all-loops-die behavior. NEUTRAL_WATCHDOG_MODEL overrides the
+# (LLP 0034). Set NEUTRAL_WATCHDOG=0 to disable the LLM watchdog.
+# The deterministic safety controller still bounds all registered loop recovery. NEUTRAL_WATCHDOG_MODEL overrides the
 # watchdog's model independently of the loops (empty = NEUTRAL_MODEL).
 ENV NEUTRAL_WATCHDOG="1"
 ENV NEUTRAL_WATCHDOG_MODEL=""
@@ -118,5 +120,9 @@ ENV NEUTRAL_HYPAWARE="1"
 ENV HYP_REMOTE_NAME="prod"
 ENV HYP_REMOTE_URL=""
 
+# @ref LLP 0072#controller [implements] — only the controller runs as root; all services drop to neutral
+USER root
+RUN mkdir -p /var/lib/neutral-safety && chmod 700 /var/lib/neutral-safety
+ENV NEUTRAL_SAFETY_SOCKET="/run/neutral-safety/client.sock"
 WORKDIR /work
 ENTRYPOINT ["/opt/neutral/docker/entrypoint.sh"]

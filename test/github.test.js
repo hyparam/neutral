@@ -1,7 +1,7 @@
 // @ts-check
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { listOpenPRs, listMergedAdoptPRs, viewPR, normalizePR, isPRQueued, listLabelledIssues, listOpenPRBodies, listPRHistory } from '../src/github.js'
+import { listOpenPRs, listMergedAdoptPRs, viewPR, normalizePR, isPRQueued, viewPRMergeQueue, listLabelledIssues, listOpenPRBodies, listPRHistory } from '../src/github.js'
 
 /**
  * A fake `gh` runner keyed by subcommand. `fail` makes every call throw (offline).
@@ -75,6 +75,38 @@ test('isPRQueued reads the GraphQL-only merge queue entry and degrades false', a
   assert.equal(await isPRQueued('/r', 'PR_node', fakeGh({ queueEntry: null })), false)
   assert.equal(await isPRQueued('/r', '', fakeGh({ queueEntry: { id: 'MQE_node' } })), false)
   assert.equal(await isPRQueued('/r', 'PR_node', fakeGh({ fail: true })), false)
+})
+
+// @ref LLP 0073#queue-observation [tests]
+test('viewPRMergeQueue distinguishes available, absent, and unknown queue capability', async () => {
+  const node = { headRefOid: 'abc1234', baseRefName: 'master', isMergeQueueEnabled: false, mergeQueueEntry: null }
+  for (const enabled of [true, false]) {
+    for (const queued of [true, false]) {
+      const entry = queued ? { id: 'MQE_1' } : null
+      const got = await viewPRMergeQueue('/r', 'PR_1', async (cmd, args) => {
+        assert.equal(cmd, 'gh')
+        assert.ok(args.includes('id=PR_1'))
+        assert.match(args.join(' '), /isMergeQueueEnabled mergeQueueEntry/)
+        return JSON.stringify({ data: { node: { ...node, isMergeQueueEnabled: enabled, mergeQueueEntry: entry } } })
+      })
+      assert.deepEqual(got, { enabled, queued, headSha: 'abc1234', base: 'master' })
+    }
+  }
+  for (const response of [
+    {}, { data: { node: null } },
+    { data: { node: { ...node, isMergeQueueEnabled: null } } },
+    { data: { node: { ...node, isMergeQueueEnabled: 'false' } } },
+    { data: { node: { ...node, mergeQueueEntry: undefined } } },
+    { data: { node: { ...node, mergeQueueEntry: {} } } },
+    { data: { node: { ...node, headRefOid: '' } } },
+    { data: { node: { ...node, baseRefName: '' } } },
+    { data: { node }, errors: [{ message: 'forbidden' }] }
+  ]) {
+    assert.equal(await viewPRMergeQueue('/r', 'PR_1', async () => JSON.stringify(response)), null)
+  }
+  assert.equal(await viewPRMergeQueue('/r', 'PR_1', async () => 'invalid JSON'), null)
+  assert.equal(await viewPRMergeQueue('/r', 'PR_1', fakeGh({ fail: true })), null)
+  assert.equal(await viewPRMergeQueue('/r', '', async () => { assert.fail('must not query without an id') }), null)
 })
 
 test('listLabelledIssues flattens label objects to names', async () => {

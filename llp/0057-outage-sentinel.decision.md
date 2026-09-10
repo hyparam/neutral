@@ -92,6 +92,10 @@ sentinel cannot report from inside. Opt-in, one `fetch`, no inbound surface.
 
 ## Consequences
 
+> Extended-by: LLP 0072 — [Restart safeguard](0072-restart-burn-safeguard.rfc.md#evidence-alerts)
+> adds immediate safety-hold alerts through this notification path;
+> enforcement belongs to a separate controller and the sentinel remains notify-only.
+
 - Config surface grows: `NEUTRAL_SENTINEL` (default `1` when
   `SLACK_BOT_TOKEN` + `SLACK_CHANNEL_ID` are set, independent of
   `NEUTRAL_MAYOR` — alerting must not require the mayor), 

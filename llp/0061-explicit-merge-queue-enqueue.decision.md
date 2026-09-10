@@ -23,6 +23,10 @@ behind the deterministic CLI boundary.
 
 ## Decision
 
+> **Extended-by [LLP 0073](0073-queue-preference-with-direct-fallback.spec.md):**
+> the observer selects enqueue only for an available target queue; confirmed
+> queue-less targets use the ordinary merge ladder.
+
 Add `neutral enqueue <pr-number> <expected-head-sha>`. The command:
 
 1. reads the PR's GraphQL node id and current head SHA from GitHub;

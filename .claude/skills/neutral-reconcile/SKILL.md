@@ -31,7 +31,8 @@ and a landing policy authorizes the exact head. `shipRisk.mode: observe` require
 a current-head assessment: without automerge authority it records and holds; with
 that authority, only a result within `maxAutomerge` may land (LLP 0062/0069).
 `off` preserves LLP 0019's legacy risk-unaware terminal. `mergeQueue: true`
-delegates freshness and landing order to GitHub's merge queue (LLP 0060). By
+prefers GitHub's queue when the PR target has one; a confirmed queue-less target
+uses ordinary merge handling, and unknown availability waits (LLP 0073). By
 default Neutral drives every artifact to *held, green, reviewed* and waits.
 
 ## The one rule — ground truth, never self-report (LLP 0002)
@@ -181,7 +182,13 @@ model's own judgement (LLP 0002):
 `recycle` is `true` only when **both** hold. Then, **after** fan-in and after the
 tick's log lines (R2 — nothing may follow this destructive act):
 
-- **In tmux** (`$TMUX` set): emit one final log line
+- **In the managed container** (`$NEUTRAL_SAFETY_SOCKET` set, or
+  `/run/neutral-safety/client.sock` exists): emit the recycle log line, then run
+  `neutral safety recycle` as the tick's last act (LLP 0072). The controller
+  preserves the configured model/headless prompt and admits at most one
+  successor. A hold or stale-generation error ends the attempt; only the
+  operator can rearm it. All container replacements use this gate.
+- **In workstation tmux** (`$TMUX` set, no container safety socket): emit one final log line
   `tick: family=autophagy action=recycle detail=context=<N> threshold=<T>`, then
   **respawn the pane** — the tick's last act:
   ```sh
@@ -269,9 +276,9 @@ model's failure just re-opens the gap — so cheap models run wherever a verifie
 the result, and the strongest is reserved for judgement no machine re-checks. When you
 dispatch a worker below, pass the tier's model as the sub-agent's `model`:
 
-- **Judgment tier — `fable`, at `high` effort.** Output no verifier re-derives, where
+- **Judgment tier — `claude-fable-5-1`, at `high` effort.** Output no verifier re-derives, where
   an error propagates: the **Designer**, the **Impl-designer**, and the **triage** rung.
-  Run Fable at **`high`**, not Claude Code's `xhigh` default — Fable at `high` still
+  Run Fable 5.1 at **`high`**, not Claude Code's `xhigh` default — Fable 5.1 at `high` still
   exceeds prior models at their ceiling, so it's a low-risk cost lever on the priciest
   tier. The implement Workflow enforces this via `agent({ effort: 'high' })`; the **Agent
   tool has no per-call `effort` override**, so the Designer/Impl-designer/triage inherit
@@ -295,7 +302,7 @@ escalation changes *which model retries*, never *what counts as done*. The imple
 Workflow's wave loop owns this ladder end-to-end; the other rungs below take a single
 tier per their heading.
 
-## Fan-out worker: Designer (pipeline)  — judgment tier (`fable`)
+## Fan-out worker: Designer (pipeline)  — judgment tier (`claude-fable-5-1`)
 
 Goal: every live request is `@ref`'d by a `design` LLP. Plan the **whole** backlog
 up front, then mint only the groups covered by this tick's reserved admission slots
@@ -323,7 +330,7 @@ up front, then mint only the groups covered by this tick's reserved admission sl
      the remote branch); then `cd <repo> && git worktree remove --force "$WT"`.
 4. **Verify:** `neutral backlog` is now **empty**. Never commit a design to the target branch.
 
-## Fan-out worker: Impl-designer (pipeline)  — judgment tier (`fable`)
+## Fan-out worker: Impl-designer (pipeline)  — judgment tier (`claude-fable-5-1`)
 
 Goal: every implementable `design` LLP has a `plan` LLP on its `integration/<slug>`
 branch. A design is implementable two ways: **neutral-minted** (already on
@@ -355,7 +362,7 @@ content edit — immutability holds) so the merged change set reads as shipped (
    Encode real code dependencies in `deps`. **Rate each task's `complexity` 1–5**
    (LLP 0022) — your judgement, made here with the whole design in view, seeds the
    first implementation attempt's model tier: **1–3** a mechanical task (Sonnet),
-   **4** needs the worker tier (Opus 5), **5** needs judgement (Fable). Rate for
+   **4** needs the worker tier (Opus 5), **5** needs judgement (Fable 5.1). Rate for
    the *hardest* part of the task; be honest, not generous — the rating only seeds
    the entry rung and a verified failure still escalates (LLP 0021), so under-rating
    costs one climbing attempt, over-rating overpays. Omit `complexity` only when you
@@ -485,10 +492,11 @@ which replies are new.
   `Change-Set: <slug>`.
   A `fix/issue-*` PR is created by the issue-fix worker (below) with `Fixes #N`.
 - **`merge-base`** (rung 1, `BEHIND` — stale, no conflict; emitted only when
-  `mergeQueue` is off): **mechanical, no agent**,
+  the PR target has no queue, or `mergeQueue` is off): **mechanical, no agent**,
   in a **detached worktree** (never the main checkout, LLP 0012) — `<pr-branch>` is
-  `integration/<slug>` or the `fix/issue-*` branch:
-  `WT=$(mktemp -d) && git worktree add --detach "$WT" origin/<pr-branch> && cd "$WT" && git merge --no-edit origin/<DEFAULT> && git push origin HEAD:<pr-branch>`,
+  `integration/<slug>` or the `fix/issue-*` branch; `<base>` is the PR's observed
+  `base` from `neutral prs`:
+  `WT=$(mktemp -d) && git worktree add --detach "$WT" origin/<pr-branch> && cd "$WT" && git merge --no-edit origin/<base> && git push origin HEAD:<pr-branch>`,
   then `cd <repo> && git worktree remove --force "$WT"`. Re-observes next tick.
 - **`resolve-conflict`** (rung 1, `DIRTY` — the **highest-blast-radius** action):
   dispatch ONE agent (**worker tier — `opus`**, LLP 0020) in its own worktree. It
@@ -533,7 +541,7 @@ which replies are new.
 - **`triage`** (rung 3, review rounds exhausted at an unreviewed head): the fix-loop hit
   the review-round cap (`maxReviewRounds` + in-thread grants, LLP 0059) with findings
   still open. **Before parking the PR, judge whether it can
-  ship safely** (LLP 0017). Dispatch ONE agent (**judgment tier — `fable`**, LLP 0020 —
+  ship safely** (LLP 0017). Dispatch ONE agent (**judgment tier — `claude-fable-5-1`**, LLP 0020 —
   a mis-classified blocker ships a production defect; this call is not machine-checkable)
   in its **own worktree** to re-read every
   **unresolved** finding from the last review and classify each as a **true blocker** —
@@ -593,14 +601,16 @@ which replies are new.
   does not own.
 - **`merge`** (terminal, only when the repo opted in with `automerge: true` and
   the configured ship-risk policy permits this exact head — LLP 0019/0069):
-  `gh pr ready <N>` if still a draft, then `gh pr merge <N> --squash`
+  `gh pr ready <N>` if still a draft and re-observe next tick; otherwise run
+  `gh pr merge <N> --squash --match-head-commit <headSha>`
   (squash-only-at-the-final-PR, as for a human merge). No `--delete-branch` — the
   Handoff stage owns cleanup. The CLI emits this action *only* when all three rungs
   hold at the current head and the PR is not `neutral:stuck`; if the merge is
   refused (branch protection), leave it — next tick re-observes. **Verify like a
   human merge:** next tick the design LLP on `origin/<DEFAULT>` /
   `gh pr view --json state` = `MERGED` is the ground truth, not gh's exit code.
-- **`enqueue`** (terminal, only when `automerge: true`, `mergeQueue: true`, and the
+- **`enqueue`** (terminal, only when `automerge: true`, `mergeQueue: true`, GitHub
+  confirms the target has a queue, and the
   configured ship-risk policy permits this exact head — LLP 0060/0061/0069):
   `gh pr ready <N>` if still a draft, re-observe next tick, then
   `neutral enqueue <N> <headSha>`. The command verifies the current head, passes it
@@ -609,7 +619,8 @@ which replies are new.
   Next tick, a live GraphQL `mergeQueueEntry` makes the CLI return `wait` with
   `approved: true`. Do not merge the target into the branch, re-review, or re-enqueue
   while that entry exists. If GitHub removes the entry, the CLI re-opens the proper
-  rung from current ground truth.
+  rung from current ground truth. A rejected enqueue returns to observation;
+  only a fresh CLI `merge` action authorizes direct fallback (LLP 0073).
 - **`wait`** / **`held`**: do nothing this tick.
 
 ### Delegated PRs — `neutral:adopt` / `neutral:review` (LLP 0025/0032/0058)
@@ -735,7 +746,7 @@ begin. Delete the merged integration branch (local + `git push origin --delete`)
   irreversible act, a human's by default; drive to held + green + reviewed and
   stop. The single exception is the repo opting in via `automerge: true`
   (LLP 0019); the enabled ship-risk gate limits that authority to eligible assessed
-  heads (LLP 0069), and `mergeQueue: true` selects queue landing (LLP 0060). Even
+  heads (LLP 0069), and `mergeQueue: true` prefers an available queue (LLP 0073). Even
   then only the `neutral prs` action decides — never merge or enqueue on your own
   judgement.
 - **Never push to the target branch.** All design/plan/code/fixes land via a held PR.

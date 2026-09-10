@@ -56,6 +56,9 @@ is gone.
 
 ### Context recycle
 
+> Extended-by: LLP 0072 — [Restart safeguard](0072-restart-burn-safeguard.rfc.md#controller)
+> adds a common admission gate for container loop replacements.
+
 The one orchestrator is a long-lived `/loop` session, so its context grows tick over
 tick — even on idle ticks, which append re-derivable observe-output to a transcript
 that LLP 0002 makes worthless to retain. There is **no in-session clear** (no

@@ -30,9 +30,8 @@ never applies to it.
   'neutral-mayor'`); never read your own files as its heartbeat. The same
   45-minute predicate applies unchanged (its tick promise is the standard
   ≤30-minute heartbeat). Heal it with the same ladder, but any respawn uses
-  **`$NEUTRAL_MAYOR_CMD`** (exported by the entrypoint — the single respawn
-  source), never the `/work/<name>` reconcile command: rebuilding the mayor as
-  a reconcile loop is exactly the mistake the by-name rule exists to prevent.
+  **`neutral safety replace --session neutral-mayor`**; the controller owns
+  its command and preserves its role and model.
 - **`hyp-daemon` is not yours.** The entrypoint supervisor restarts it and
   re-attaches the loops. If it is dead, log it and move on.
 - **`slack-bridge` is not yours** (and not a claude session). The supervisor
@@ -92,28 +91,20 @@ never applies to it.
    it resume mid-flight work.
 
 2. **Respawn** (nudge failed its verification, interactive dialog, or missing
-   session): end the session if present (`tmux kill-session -t <session>`), then
-   start it fresh exactly as the entrypoint does:
+   session): read the pane tail and last transcript events, then ask the
+   deterministic controller to replace the registered session:
 
    ```bash
-   tmux new-session -d -s <session> -c /work/<name> \
-     "claude --model '${NEUTRAL_MODEL:-claude-opus-5[1m]}' ${NEUTRAL_CLAUDE_ARGS:---dangerously-skip-permissions} --append-system-prompt '$NEUTRAL_HEADLESS_PROMPT' '/loop /neutral-reconcile'"
+   neutral safety replace --session <session>
    ```
 
-   (`NEUTRAL_HEADLESS_PROMPT` is exported by the entrypoint — it tells the
-   fresh session it is unattended so it never presents interactive menus.)
-
-   For **`neutral-mayor`** the respawn is instead:
-
-   ```bash
-   tmux new-session -d -s neutral-mayor -c /work "$NEUTRAL_MAYOR_CMD"
-   ```
-
-   Before ending it, read the pane tail and last transcript events so the log
-   line can say what was mid-flight. Nothing that matters is lost: real work is
-   already in git/GitHub, and the fresh loop's first tick re-derives everything
-   from ground truth (LLP 0002). Verify the respawn the same way — a new
-   transcript event within ~5 min.
+   This command applies to repo loops and `neutral-mayor` alike. The controller
+   preserves the pinned model and headless prompt, reserves the start budget,
+   and replaces the predecessor. A hold or stale-generation error ends this
+   heal attempt; log the result and return. Only an operator can rearm a hold.
+   Verify an admitted replacement from new transcript events within ~5 min.
+   All container replacements use this gate (LLP 0072); direct tmux launches
+   bypass the protection and are forbidden.
 
 At most **one** heal attempt per session per tick; if a heal fails verification,
 escalate one rung (nudge → respawn) within the same tick, then log and let the
@@ -131,11 +122,12 @@ watchdog: session=<name> state=<healthy|busy|nudged|respawned|dead-daemon> last_
 
 Return and let `/loop` schedule the next tick. Exception: if **every** session was
 healthy this tick and your own context has grown past ~300k tokens, recycle
-instead — the tick's last act, targeting your own pane (no `-t`, LLP 0014):
+instead — the tick's last act, through the safety controller (LLP 0072):
 
 ```bash
-tmux respawn-pane -k "claude --model '${NEUTRAL_WATCHDOG_MODEL:-${NEUTRAL_MODEL:-claude-opus-5[1m]}}' ${NEUTRAL_CLAUDE_ARGS:---dangerously-skip-permissions} --append-system-prompt '$NEUTRAL_HEADLESS_PROMPT' '/loop 55m /neutral-watchdog'"
+neutral safety recycle
 ```
 
-The model is pinned explicitly via the env knobs — an unpinned respawn would
-silently revert the fresh watchdog to the default model (LLP 0020's lesson).
+The controller identifies your current generation from its injected environment
+and preserves the pinned watchdog command. A denied replacement ends the tick;
+only an operator can rearm the fleet.

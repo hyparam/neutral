@@ -54,6 +54,9 @@ recent channel history in its first tick.
 
 ## Consequences
 
+> Extended-by: LLP 0072 — [Restart safeguard](0072-restart-burn-safeguard.rfc.md#controller)
+> adds shared admission for mayor startup, repair, and context replacement.
+
 - The entrypoint gains the mayor session, the `NEUTRAL_MAYOR_CMD` export, and
   supervisor duties for mayor + bridge; the watchdog skill gains
   mayor-awareness. Knobs: `NEUTRAL_MAYOR` (default off until a Slack app

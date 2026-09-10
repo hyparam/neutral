@@ -360,6 +360,9 @@ test('an enqueued PR waits with approval intact until GitHub lands or removes it
   assert.equal(d.action, 'wait')
   assert.equal(d.approved, true)
   assert.match(d.reason, /merge group/)
+  // Existing membership still wins if the target's queue setting has changed.
+  assert.equal(selectRung(pr({ queued: true }), 2, true, false).action, 'wait')
+  assert.equal(selectRung(pr({ queued: true }), 2, true, null).action, 'wait')
 })
 
 // One report comment at the given SHA — the thread baseline for the stuck tests.

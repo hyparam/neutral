@@ -55,3 +55,15 @@ test('startCommand: inside tmux → ensures a detached session, never attaches i
   assert.equal(spawned, false)
   assert.deepEqual(execArgv, ['new-session', '-d', '-A', '-s', 'neutral-hypaware', LOOP_SHELL_COMMAND])
 })
+
+// @ref LLP 0072#controller [tests] — unmanaged CLI startup cannot bypass container admission
+test('startCommand refuses unmanaged starts in a guarded container', async () => {
+  let called = false
+  const code = await startCommand('/work/a', [], {
+    env: { NEUTRAL_SAFETY_SOCKET: '/run/neutral-safety/client.sock' },
+    exec: async () => { called = true; return '' },
+    spawn: () => { called = true; return { status: 0 } }
+  })
+  assert.equal(code, 1)
+  assert.equal(called, false)
+})

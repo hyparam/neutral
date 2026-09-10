@@ -65,6 +65,10 @@ The cap throttles intake only; it is never a reason to stop healing admitted wor
 <a id="merge-queue"></a>
 ### Merge queue
 
+> **Extended-by [LLP 0073](0073-queue-preference-with-direct-fallback.spec.md):**
+> queue mode is a preference resolved against the PR target's observed capability;
+> a confirmed queue-less target uses ordinary merge handling.
+
 Add `mergeQueue` to `.neutral/config.json`, default **false**. It is an opt-in
 landing strategy for a repository whose target branch is configured to require a
 GitHub merge queue. `automerge` remains the authority boundary:

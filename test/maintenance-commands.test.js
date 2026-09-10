@@ -10,10 +10,10 @@ import { collectIssues } from '../src/commands/issues.js'
 /**
  * A fake runner that answers both `git` (for-each-ref) and `gh` (pr/issue), so the
  * maintenance observe surface can be exercised fully offline.
- * @param {{prs?: any[], views?: Record<number, any>, issues?: any[], fixBranches?: string[], mergedPrs?: any[], queuedIds?: string[]}} cfg
+ * @param {{prs?: any[], views?: Record<number, any>, issues?: any[], fixBranches?: string[], mergedPrs?: any[], queuedIds?: string[], queueEnabled?: boolean}} cfg
  * @returns {import('../src/git.js').run}
  */
-function fakeWorld({ prs = [], views = {}, issues = [], fixBranches = [], mergedPrs = [], queuedIds = [] } = {}) {
+function fakeWorld({ prs = [], views = {}, issues = [], fixBranches = [], mergedPrs = [], queuedIds = [], queueEnabled = true } = {}) {
   return async (cmd, args) => {
     if (cmd === 'git' && args[0] === 'for-each-ref') {
       // only the `fix/*` lookup is exercised here
@@ -36,7 +36,12 @@ function fakeWorld({ prs = [], views = {}, issues = [], fixBranches = [], merged
     }
     if (cmd === 'gh' && args[0] === 'api' && args[1] === 'graphql') {
       const id = String(args.find(a => String(a).startsWith('id=')) || '').slice(3)
-      return JSON.stringify({ data: { node: { mergeQueueEntry: queuedIds.includes(id) ? { id: `entry-${id}` } : null } } })
+      const view = Object.values(views).find(p => p.id === id)
+      return JSON.stringify({ data: { node: {
+        headRefOid: view?.headRefOid, baseRefName: view?.baseRefName,
+        isMergeQueueEnabled: queueEnabled,
+        mergeQueueEntry: queuedIds.includes(id) ? { id: `entry-${id}` } : null
+      } } })
     }
     throw new Error('unexpected ' + cmd + ' ' + args.join(' '))
   }
@@ -99,6 +104,102 @@ test('an adopted PR rides the own ladder through ship-risk-gated automerge (LLP 
     assert.equal(gated.action, 'merge')
     assert.equal(gated.shipRiskEligible, true)
     assert.equal(gated.wouldAutomerge, true)
+  } finally {
+    rmSync(repo, { recursive: true, force: true })
+  }
+})
+
+// @ref LLP 0073#ordinary-landing [tests]
+test('collectPRs queue preference falls back to ordinary landing when the target has no queue', async () => {
+  const repo = mkdtempSync(join(tmpdir(), 'neutral-prs-'))
+  try {
+    mkdirSync(join(repo, '.neutral'))
+    writeFileSync(join(repo, '.neutral', 'config.json'), JSON.stringify({ automerge: true, mergeQueue: true }))
+    const view = {
+      id: 'PR_1', number: 1, headRefName: 'integration/auth', baseRefName: 'master', isDraft: false,
+      mergeable: 'MERGEABLE', mergeStateStatus: 'CLEAN', statusCheckRollup: [],
+      headRefOid: 'abc1234', body: '<!-- neutral-review: abc1234 -->',
+      comments: [{ author: { login: 'phil' }, body: '<!-- neutral-ship-risk: abc1234 low e4 v1 -->', createdAt: '1' }]
+    }
+    const exec = fakeWorld({ prs: [view], views: { 1: view }, queueEnabled: false })
+    assert.equal((await collectPRs(repo, exec))[0].action, 'merge')
+    view.mergeStateStatus = 'BEHIND'
+    assert.equal((await collectPRs(repo, exec))[0].action, 'merge-base')
+    view.mergeStateStatus = 'CLEAN'
+    view.comments = []
+    assert.equal((await collectPRs(repo, exec))[0].action, 'assess-ship-risk')
+    view.comments = [{ author: { login: 'phil' }, body: '<!-- neutral-ship-risk: abc1234 high e4 v1 -->', createdAt: '2' }]
+    assert.equal((await collectPRs(repo, exec))[0].action, 'held')
+    view.body = ''
+    assert.equal((await collectPRs(repo, exec))[0].action, 'review')
+  } finally {
+    rmSync(repo, { recursive: true, force: true })
+  }
+})
+
+// @ref LLP 0073#queue-observation [tests]
+test('collectPRs waits on failed or stale queue reads, then recovers on the next observation', async () => {
+  const repo = mkdtempSync(join(tmpdir(), 'neutral-prs-'))
+  try {
+    mkdirSync(join(repo, '.neutral'))
+    writeFileSync(join(repo, '.neutral', 'config.json'), JSON.stringify({ automerge: true, mergeQueue: true, shipRisk: { mode: 'off' } }))
+    const view = {
+      id: 'PR_1', number: 1, headRefName: 'integration/auth', baseRefName: 'master', isDraft: false,
+      mergeable: 'MERGEABLE', mergeStateStatus: 'CLEAN', statusCheckRollup: [],
+      headRefOid: 'abc1234', body: '<!-- neutral-review: abc1234 -->'
+    }
+    const exec = fakeWorld({ prs: [view], views: { 1: view }, queueEnabled: false })
+    for (const stale of [null, { headRefOid: 'new-head' }, { baseRefName: 'release' }]) {
+      const [p] = await collectPRs(repo, async (cmd, args, cwd) => {
+        if (args[0] !== 'api') return exec(cmd, args, cwd)
+        if (!stale) throw new Error('network unavailable')
+        const response = JSON.parse(await exec(cmd, args, cwd))
+        Object.assign(response.data.node, stale)
+        return JSON.stringify(response)
+      })
+      assert.equal(p.action, 'wait')
+      assert.match(p.reason, /queue availability unknown/)
+      assert.equal(p.approved, undefined)
+    }
+    assert.equal((await collectPRs(repo, exec))[0].action, 'merge')
+  } finally {
+    rmSync(repo, { recursive: true, force: true })
+  }
+})
+
+// @ref LLP 0073#queue-observation [tests]
+test('collectPRs observes each target independently, including adopted PRs, and re-reads queue changes', async () => {
+  const repo = mkdtempSync(join(tmpdir(), 'neutral-prs-'))
+  try {
+    mkdirSync(join(repo, '.neutral'))
+    const configPath = join(repo, '.neutral', 'config.json')
+    writeFileSync(configPath, JSON.stringify({ automerge: true, mergeQueue: true, shipRisk: { mode: 'off' } }))
+    const views = [1, 2].map(number => ({
+      id: `PR_${number}`, number, headRefName: 'contrib/patch', baseRefName: number === 1 ? 'master' : 'release',
+      labels: [{ name: 'neutral:adopt' }], isDraft: false,
+      mergeable: 'MERGEABLE', mergeStateStatus: 'CLEAN', statusCheckRollup: [],
+      headRefOid: 'abc1234', body: '<!-- neutral-review: abc1234 -->'
+    }))
+    const exec = fakeWorld({ prs: views, views: { 1: views[0], 2: views[1] } })
+    let enabled = true
+    /** @type {typeof exec} */
+    const mixed = async (cmd, args, cwd) => {
+      const raw = await exec(cmd, args, cwd)
+      if (args[0] !== 'api') return raw
+      const response = JSON.parse(raw)
+      response.data.node.isMergeQueueEnabled = enabled && args.includes('id=PR_1')
+      return JSON.stringify(response)
+    }
+    assert.deepEqual((await collectPRs(repo, mixed)).map(p => p.action), ['enqueue', 'merge'])
+    enabled = false
+    assert.deepEqual((await collectPRs(repo, mixed)).map(p => p.action), ['merge', 'merge'])
+    writeFileSync(configPath, JSON.stringify({ automerge: false, mergeQueue: true, shipRisk: { mode: 'off' } }))
+    assert.deepEqual((await collectPRs(repo, mixed)).map(p => p.action), ['held', 'held'])
+    writeFileSync(configPath, JSON.stringify({ automerge: true, mergeQueue: false, shipRisk: { mode: 'off' } }))
+    assert.deepEqual((await collectPRs(repo, async (cmd, args, cwd) => {
+      assert.notEqual(args[0], 'api', 'explicit queue opt-out keeps the ordinary ladder')
+      return exec(cmd, args, cwd)
+    })).map(p => p.action), ['merge', 'merge'])
   } finally {
     rmSync(repo, { recursive: true, force: true })
   }

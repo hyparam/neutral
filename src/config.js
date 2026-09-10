@@ -102,10 +102,11 @@ export const DEFAULT_CONFIG = {
   // owner moves it here, in a tracked, reviewed file.
   // @ref LLP 0019 [implements] — automerge relaxes the hold, never the gates
   automerge: false,
-  // Opt-in landing strategy for an automerge repo whose target branch requires a
-  // GitHub merge queue. The queue owns base freshness and the final integration
+  // Prefer a GitHub merge queue when the PR's target has one; otherwise use the
+  // ordinary merge ladder. The queue owns base freshness and the final integration
   // check; Neutral stops pushing target merges into every BEHIND branch.
   // @ref LLP 0060#merge-queue [implements]
+  // @ref LLP 0073#queue-observation [implements] — preference, not proof of availability
   mergeQueue: false,
   // Policy over the final reviewed head. `observe` records the assessment and
   // constrains any automerge authority to an eligible exact head.

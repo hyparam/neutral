@@ -15,10 +15,15 @@ import { startCommand } from '../src/commands/start.js'
 import { observeCommand } from '../src/commands/observe.js'
 import { enqueueCommand } from '../src/commands/enqueue.js'
 import { prStatsCommand } from '../src/commands/pr-stats.js'
+import { safetyCommand } from '../src/safety-client.js'
 
 const USAGE = `neutral — declarative reconcilers for the LLP -> PR pipeline
 
 usage:
+  neutral safety status --json   inspect the container's persistent restart breaker
+  neutral safety replace --session <name>  request a budgeted repair
+  neutral safety recycle        request replacement of this loop generation
+  neutral safety init|rearm|stop  operator commands; see docker/SAFETY.md
   neutral start                  launch the orchestrator loop in its tmux pane (LLP 0013)
   neutral init                   scaffold .neutral/ config + baseline; report the backlog
   neutral observe [--json]       EVERY gap across both families in one report (LLP 0052)
@@ -45,6 +50,7 @@ async function main(argv) {
   const repo = process.cwd()
 
   switch (cmd) {
+    case 'safety': return safetyCommand(rest)
     case 'start': return startCommand(repo, rest)
     case 'init': return initCommand(repo, rest)
     case 'observe': return observeCommand(repo, rest)

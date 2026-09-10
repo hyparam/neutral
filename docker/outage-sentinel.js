@@ -19,6 +19,7 @@ import { execFile } from 'node:child_process'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
+import { safetyRequest } from '../src/safety-client.js'
 import {
   newestUsageMs, classifySilence, incidentKey, sentinelStep,
   formatAlert, formatNag, formatRecovery
@@ -124,6 +125,24 @@ async function slack(token, method, payload) {
 }
 
 /**
+ * @ref LLP 0072#evidence-alerts [implements] — immediate, model-free safety alerts; history dedupes held boots
+ * @param {any} status @param {NodeJS.ProcessEnv} env
+ */
+export async function reportSafety(status, env) {
+  if (!env.SLACK_BOT_TOKEN || !env.SLACK_CHANNEL_ID) return
+  const cfg = { botToken: env.SLACK_BOT_TOKEN, channel: env.SLACK_CHANNEL_ID }
+  const hold = status.hold ?? status.lastHold
+  if (!hold) return
+  const kind = status.held ? 'safety-hold' : 'safety-rearmed'
+  const key = `[neutral fleet ${kind}@${hold.id}]`
+  if (await findExistingRoot(cfg, key, hold.at)) return
+  const text = status.held
+    ? `${key}\nFleet safety hold: ${hold.reason}. Model launches are disabled; a running fleet is being terminated.\nFailures: ${status.counts?.failuresHour ?? 'unknown'}/60m, ${status.counts?.failuresDay ?? 'unknown'}/24h.\nInspect with neutral safety status --json. An operator must run neutral safety rearm --incident ${hold.id} --reason <text>.`
+    : `${key}\nOperator rearmed the fleet. This confirms permission to run; new model usage is verified separately.`
+  await slack(cfg.botToken, 'chat.postMessage', { channel: cfg.channel, text })
+}
+
+/**
  * Dedupe read before posting a root: scan channel history for this incident's
  * key (Slack is the ground truth for what has been reported — no state file).
  * Covers a sentinel restarted mid-incident. Returns the existing root's ts, or
@@ -184,6 +203,18 @@ async function pass(cfg, ctx, incident) {
   // alert, so it must fire even — especially — when everything else is broken.
   if (cfg.heartbeatUrl) {
     await fetch(cfg.heartbeatUrl, { signal: AbortSignal.timeout(10_000) }).catch(() => {})
+  }
+
+  if (process.env.NEUTRAL_SAFETY_SOCKET) {
+    const status = await safetyRequest({ action: 'status' })
+    await reportSafety(status, process.env)
+    if (status.held) return null
+    if (status.lastHold && status.rearmedAt && (fleetNewestUsageMs(join(ctx.home, '.claude', 'projects')) ?? 0) > status.rearmedAt) {
+      const key = `[neutral fleet safety-usage@${status.lastHold.id}]`
+      if (!await findExistingRoot(cfg, key, status.rearmedAt)) {
+        await slack(cfg.botToken, 'chat.postMessage', { channel: cfg.channel, text: `${key} Model usage observed after operator rearm.` })
+      }
+    }
   }
 
   const newestMs = fleetNewestUsageMs(join(ctx.home, '.claude', 'projects'))

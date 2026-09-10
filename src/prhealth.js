@@ -412,7 +412,7 @@ export function rollupConclusion(rollup) {
  * @param {PrObservation} pr
  * @param {number} [maxReviewRounds]
  * @param {boolean} [automerge]  opt-in (LLP 0019): terminal = merge, not hold
- * @param {boolean} [mergeQueue] opt-in (LLP 0060): queue owns base freshness + landing
+ * @param {boolean | null} [mergeQueue] observed queue availability; null waits for a reliable read
  * @param {ShipRiskConfig} [shipRisk] final-head policy (LLP 0062/0069)
  * @returns {RungDecision}
  * @ref LLP 0009#pr-health-reconciler [implements]
@@ -460,8 +460,13 @@ export function selectRung(pr, maxReviewRounds = DEFAULT_REVIEW_ROUNDS, automerg
   // A queue entry is GitHub-owned in-flight work. Keep the approval projection but
   // do not heal/re-review/enqueue the same head while the queue validates it.
   // @ref LLP 0060#merge-queue [implements]
-  if (mergeQueue && pr.queued) {
+  if (pr.queued) {
     return { rung: 'terminal', action: 'wait', reason: 'enqueued — GitHub is validating the merge group', approved: true }
+  }
+
+  // @ref LLP 0073#queue-observation [implements] — unknown capability is not absence
+  if (mergeQueue === null) {
+    return { rung: 'mergeable', action: 'wait', reason: 'merge queue availability unknown — re-observe the current head and target before choosing a landing strategy' }
   }
 
   // Rung 1 — mergeable.

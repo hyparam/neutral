@@ -8,6 +8,7 @@
 // @ref LLP 0010#context-recycle [constrained-by] — the pane (not the name) is the mutex
 import { spawnSync } from 'node:child_process'
 import { basename } from 'node:path'
+import { existsSync } from 'node:fs'
 import { run } from '../git.js'
 
 // Fallback session name and per-repo prefix. The live name is per-repo (`sessionName`);
@@ -72,6 +73,12 @@ export async function startCommand(repo, _args, deps = {}) {
   const exec = deps.exec || run
   const spawn = deps.spawn || ((cmd, a) => spawnSync(cmd, a, { stdio: 'inherit' }))
   const env = deps.env || process.env
+
+  // @ref LLP 0072#controller [implements] — container boot owns the registered fleet
+  if (env.NEUTRAL_SAFETY_SOCKET || existsSync('/run/neutral-safety/client.sock')) {
+    process.stderr.write('neutral start: managed container; use neutral safety status, then a guarded repair or operator rearm.\n')
+    return 1
+  }
 
   try {
     await exec('tmux', ['-V'], process.cwd())

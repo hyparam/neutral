@@ -156,6 +156,37 @@ export async function isPRQueued(repo, nodeId, exec = run) {
 }
 
 /**
+ * Observe queue capability for this PR's actual target, together with membership.
+ * Unknown is distinct from a confirmed queue-less branch; API failures must never
+ * select direct landing. Head and base bind this read to the health observation.
+ * @param {string} repo
+ * @param {string} nodeId
+ * @param {typeof run} [exec]
+ * @returns {Promise<{enabled: boolean, queued: boolean, headSha: string, base: string} | null>}
+ * @ref LLP 0073#queue-observation [implements]
+ */
+export async function viewPRMergeQueue(repo, nodeId, exec = run) {
+  if (!nodeId) return null
+  const query = 'query($id:ID!){node(id:$id){... on PullRequest{headRefOid baseRefName isMergeQueueEnabled mergeQueueEntry{id}}}}'
+  try {
+    const out = JSON.parse(await exec('gh', ['api', 'graphql', '-f', `query=${query}`, '-F', `id=${nodeId}`], repo))
+    const pr = out?.data?.node
+    if (out?.errors?.length || typeof pr?.isMergeQueueEnabled !== 'boolean' ||
+        typeof pr.headRefOid !== 'string' || !pr.headRefOid ||
+        typeof pr.baseRefName !== 'string' || !pr.baseRefName ||
+        !(pr.mergeQueueEntry === null || typeof pr.mergeQueueEntry?.id === 'string' && pr.mergeQueueEntry.id)) return null
+    return {
+      enabled: pr.isMergeQueueEnabled,
+      queued: !!pr.mergeQueueEntry?.id,
+      headSha: pr.headRefOid,
+      base: pr.baseRefName
+    }
+  } catch {
+    return null
+  }
+}
+
+/**
  * Full health observation for one PR, or null if gh fails.
  * @param {string} repo
  * @param {number} n

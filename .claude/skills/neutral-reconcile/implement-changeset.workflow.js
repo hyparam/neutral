@@ -125,9 +125,9 @@ Return: merged=[{id, sha (the merge commit)}] for each verified-and-pushed task;
 // only relays a CLI (haiku); the serial merger is procedural git (mechanical).
 // @ref LLP 0020#decision [implements] — verifier-gated tiers pick the model
 const TIERS = ['mechanical', 'worker', 'judgment']
-const TIER_MODEL = { mechanical: 'sonnet', worker: 'opus', judgment: 'fable' }
-// Effort per tier (LLP 0020). The judgment tier (Fable) runs at `high`, NOT Claude
-// Code's `xhigh` default — Fable at `high` still exceeds prior models at their ceiling,
+const TIER_MODEL = { mechanical: 'sonnet', worker: 'opus', judgment: 'claude-fable-5-1' }
+// Effort per tier (LLP 0020). The judgment tier (Fable 5.1) runs at `high`, NOT Claude
+// Code's `xhigh` default — Fable 5.1 at `high` still exceeds prior models at their ceiling,
 // so capping the priciest tier's thinking is a deliberate, low-risk cost lever. Tiers
 // omitted here inherit the session effort. A tunable constant, like TIER_BUDGET.
 // @ref LLP 0020#decision [implements] — judgment-tier effort caps at `high`
