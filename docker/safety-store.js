@@ -22,7 +22,7 @@ export function validSafetyState(value) {
     Array.isArray(s.starts) && s.starts.length <= 24 * 100 && s.starts.every(e => str(e.id) && str(e.loop) && num(e.at) && e.at <= s.clock.mono)
 }
 
-// @ref LLP 0072#persistence [implements] — atomic checkpoint + bounded synced audit, owned by PID 1
+// @ref LLP 0072#persistence [implements] — atomic checkpoint + bounded synced audit, owned by the root controller
 export class SafetyStore {
   /** @param {string} dir */
   constructor(dir) { this.dir = dir }

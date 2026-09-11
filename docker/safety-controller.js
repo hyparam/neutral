@@ -1,7 +1,7 @@
 // @ts-check
 import { randomUUID } from 'node:crypto'
 import { createServer } from 'node:net'
-import { chmodSync, mkdirSync, readFileSync, existsSync, rmSync } from 'node:fs'
+import { chmodSync, mkdirSync, readFileSync, existsSync, rmSync, readlinkSync } from 'node:fs'
 import { pathToFileURL } from 'node:url'
 import { setTimeout as delay } from 'node:timers/promises'
 import { initialSafetyState, safetyStep, safetyCounts, SAFETY_POLICY } from '../src/safety.js'
@@ -292,7 +292,7 @@ export function serveSafety(controller, path, operator) {
 
 /**
  * Docker restart preserves the writable layer, including dead Unix sockets.
- * Called only by PID 1 after entrypoint's exclusive persistent lock, before
+ * Called only by the root controller after entrypoint's exclusive persistent lock, before
  * starting any service. Never remove the persistent state directory here.
  * @ref LLP 0072#validation [implements] — diagnostics must survive Docker restart, not only recreation
  * @param {string} [dir]
@@ -303,7 +303,10 @@ export function prepareSafetyRuntime(dir = RUNTIME_DIR) {
 }
 
 async function main() {
-  if (process.getuid?.() !== 0 || process.pid !== 1) throw new Error('safety controller must run as root PID 1')
+  // @ref LLP 0076#init [implements] - refuse an unmanaged controller whose exit cannot end the namespace
+  if (process.getuid?.() !== 0 || process.ppid !== 1 || readlinkSync('/proc/1/exe') !== '/usr/bin/tini') {
+    throw new Error('safety controller must run as the direct root child of the bundled tini PID 1')
+  }
   // No fallback to the disposable container layer: a missing mount is held.
   const mounted = readFileSync('/proc/self/mountinfo', 'utf8').split('\n').some(l => l.split(' ')[4] === SAFETY_DIR)
   prepareSafetyRuntime()

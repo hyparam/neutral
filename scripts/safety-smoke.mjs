@@ -36,7 +36,11 @@ function start() {
 }
 const modelStarts = () => JSON.parse(exec('node', '-e', "const f=require('fs'); console.log(JSON.stringify(f.existsSync('/work/model-starts.jsonl')?f.readFileSync('/work/model-starts.jsonl','utf8').trim().split('\\n').map(JSON.parse):[]))"))
 const workers = () => exec('node', '-e', "const f=require('fs'); console.log(JSON.stringify(Object.fromEntries(f.readdirSync('/work').filter(p=>p.startsWith('worker-')).map(p=>[p,f.readFileSync('/work/'+p,'utf8')]))))")
+// @ref LLP 0076#validation [tests] - reaping and controller death preserve the container boundary
 try {
+  assert.throws(() => docker('run', '--rm', '--entrypoint', 'node', image, '/opt/neutral/docker/safety-controller.js'))
+  assert.throws(() => docker('run', '--rm', '--init', image))
+  mark('unmanaged-controller-and-external-init-refused')
   docker('run', '--rm', '--entrypoint', 'node', image, '/opt/neutral/docker/test-fixtures/safety/probe.js')
   mark('process-owned-gateway-only')
   docker('volume', 'create', safety)
@@ -55,8 +59,21 @@ try {
   root('rearm', '--incident', initialized.hold.id, '--reason', 'first fake fleet boot')
   await until(() => modelStarts().length === 1)
   assert.equal(exec('id', '-u'), '0')
-  assert.equal(exec('node', '-e', "console.log(require('fs').readFileSync('/proc/1/comm','utf8').trim())"), 'node')
+  assert.equal(exec('node', '-e', "console.log(require('fs').readFileSync('/proc/1/comm','utf8').trim())"), 'tini')
   mark('operator-rearm-launches-after-stable-gateway')
+  // Exiting grandchildren are adopted by PID 1, outside Node's child handles.
+  const orphanPids = JSON.parse(exec('node', '-e', `
+    const { spawnSync } = require('node:child_process')
+    const pids = Array.from({ length: 12 }, () => Number(spawnSync('sh',
+      ['-c', 'sleep 0.1 >/dev/null 2>&1 & echo $!'], { encoding: 'utf8' }).stdout.trim()))
+    console.log(JSON.stringify(pids))
+  `))
+  assert(orphanPids.every(pid => Number.isInteger(pid) && pid > 1))
+  await until(() => JSON.parse(exec('node', '-e', `
+    const fs = require('node:fs')
+    console.log(JSON.stringify(${JSON.stringify(orphanPids)}.every(pid => !fs.existsSync('/proc/' + pid))))
+  `)), 10_000)
+  mark('orphaned-exited-children-are-reaped')
   let before = status()
   exec('kill', '-9', String(before.processes.find(p => p.role === 'hyp').pid))
   await until(() => modelStarts().length === 2)
@@ -87,6 +104,24 @@ try {
   assert.equal(audit.filter(e => e.event_type === 'failure').length, 2)
   assert(audit.some(e => e.reason === 'second failure within 60 minutes'))
   mark('durable-audit-matches-observed-launches')
+  const restarts = Number(docker('inspect', '--format', '{{.RestartCount}}', run))
+  root('rearm', '--incident', incident, '--reason', 'verify controller crash terminates descendants')
+  await until(() => modelStarts().length === 3)
+  const controllerPid = exec('node', '-e', `
+    const fs = require('node:fs')
+    const children = fs.readFileSync('/proc/1/task/1/children', 'utf8').trim().split(/\\s+/)
+    console.log(children.filter(pid => fs.readFileSync('/proc/' + pid + '/cmdline', 'utf8')
+      .includes('/opt/neutral/docker/safety-controller.js')).join(' '))
+  `)
+  assert.match(controllerPid, /^\d+$/)
+  exec('kill', '-9', controllerPid)
+  await until(() => Number(docker('inspect', '--format', '{{.RestartCount}}', run)) > restarts)
+  await until(() => status().held)
+  assert.equal(modelStarts().length, 3)
+  const crashedWorkers = workers()
+  await delay(1500)
+  assert.equal(workers(), crashedWorkers)
+  mark('controller-crash-kills-descendants-and-reboots-held')
   console.log(`Smoke evidence: ${output}`)
 } finally {
   try { writeFileSync(join(output, 'container.log'), docker('logs', '--tail', '100', run)) } catch {}

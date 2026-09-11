@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# @ref LLP 0072#controller [implements] — unprivileged setup only; PID 1 owns every process launch
+# @ref LLP 0072#controller [implements] — unprivileged setup only; the controller owns every process launch
 set -euo pipefail
 log() { printf '[neutral-prepare] %s\n' "$*"; }
 [ "$(id -u)" != 0 ] || { log 'setup must run as neutral'; exit 1; }

@@ -23,7 +23,7 @@ FROM node:22-bookworm-slim
 # git + gh are the loop's ground-truth controllers; tmux is required for context
 # autophagy (the pane is the respawn mutex — LLP 0013).
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      git tmux curl ca-certificates jq procps util-linux \
+      git tmux curl ca-certificates jq procps util-linux tini \
   && curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
       -o /usr/share/keyrings/githubcli-archive-keyring.gpg \
   && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
