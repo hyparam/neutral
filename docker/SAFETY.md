@@ -5,11 +5,13 @@ its second failure within a rolling 60 minutes. Six failures within 24 hours
 also hold it. Each loop may start at most four times per hour and 24 times per
 day, including context recycling. These are restart limits, not token quotas.
 
-The root PID 1 controller owns admission and durable state. Claude, HypAware,
-the bridge, and sentinel run as `neutral`. A trip persists the hold and exits
-PID 1, terminating detached workers with the container. Docker may restart the
-container, but it then runs diagnostics only. The operator must explicitly
-rearm it. See [LLP 0072](../llp/0072-restart-burn-safeguard.rfc.md).
+The root controller owns admission and durable state, as the direct child of
+the bundled tini PID 1. Tini reaps orphaned workers after they exit. Claude,
+HypAware, the bridge, and sentinel run as `neutral`. A trip persists the hold
+and exits the controller; tini then exits, terminating detached workers with
+the container. Docker may restart the container, but it then runs diagnostics only. The operator must explicitly
+rearm it. See [LLP 0072](../llp/0072-restart-burn-safeguard.rfc.md) and its
+[process-reaping extension](../llp/0076-reap-orphaned-workers.spec.md).
 
 ## Deployment and first boot
 
@@ -29,8 +31,9 @@ leave the replacement held after initialization, not to rearm repeatedly.
 Keep that volume for the lifetime of the fleet, including image upgrades,
 container recreation, and moves to another host. The image now starts as root;
 do not override its user, entrypoint, PID namespace, or enable Docker's `--init`
-(the controller must be PID 1). An exclusive file lock prevents two containers
-from running against the same safety volume. Agents receive no sudo access or
+(the image already provides tini; the controller must be its direct child).
+An exclusive file lock prevents two containers from running against the same
+safety volume. Agents receive no sudo access or
 Docker socket. Do not run an older, unguarded rollback image against these
 volumes and assume that it understands the hold.
 
