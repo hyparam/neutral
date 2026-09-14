@@ -50,10 +50,13 @@ RUN useradd -m -s /bin/bash neutral \
 # neutral itself — the deterministic CLI has no runtime deps, so a symlink is
 # the whole install.
 COPY . /opt/neutral
-RUN chown -R root:root /opt/neutral && chmod -R go-w /opt/neutral
+# Build contexts can be extracted under a restrictive umask. Workers must be
+# able to read/traverse the installed source while only root can modify it.
+RUN chown -R root:root /opt/neutral && chmod -R a+rX,go-w /opt/neutral
 RUN ln -s /opt/neutral/bin/neutral.js /usr/local/bin/neutral
 
 USER neutral
+RUN neutral --help > /dev/null
 
 # Expose neutral's skills user-level so /neutral-reconcile resolves inside any
 # target repo (same shape as a ~/.claude/skills symlink on a dev machine).
