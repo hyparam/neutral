@@ -20,6 +20,8 @@ expensive review stages. Phil authorized implementing these three fixes.
 <a id="waiting"></a>
 ## Waiting
 
+Extended-by: LLP 0077 (owned waiting and protected tmux supervision).
+
 CLI review workers run through a bounded process runner that buffers a tail of
 output and emits one result at completion. Timeout kills the owned process
 group and returns failure, never a clean review. Full reports stay on disk.

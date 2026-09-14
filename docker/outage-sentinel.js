@@ -183,7 +183,9 @@ async function runProbes(home) {
     const port = settings?._hypaware?.port
     if (port) gateway = touch(`http://127.0.0.1:${port}/`)
   } catch { /* no settings — gateway unknown */ }
-  const sessions = new Promise(resolve => {
+  const sessions = process.env.NEUTRAL_SAFETY_SOCKET
+    ? safetyRequest({ action: 'sessions' }).catch(() => null)
+    : new Promise(resolve => {
     execFile('tmux', ['list-sessions', '-F', '#S'], (err, stdout) =>
       resolve(err ? null : stdout.split('\n').filter(Boolean)))
   })

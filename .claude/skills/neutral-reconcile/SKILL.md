@@ -139,21 +139,26 @@ action.
 
 Include this completion contract in every dispatched worker prompt:
 
-> Await background agents through the harness completion notification or
-> `TaskOutput` with the task ID and `block: true, timeout: 600000`. Finish
-> independent work first. For a CLI reviewer, run
+> After starting a background agent or forked skill, finish independent work,
+> then end your turn and await its completion notification. If `TaskOutput`
+> is available, use the returned task ID with `block: true, timeout: 600000`.
+> If tool discovery says it is unavailable, use the notification path. Keep
+> the review incomplete until its actual result arrives; transcript silence
+> and file timestamps are not completion. For a CLI reviewer, run
 > `neutral run-worker --timeout-ms 1800000 -- <reviewer-command> <args...>`
-> once using Bash background execution; await that task's completion. The
-> runner buffers bounded output and returns the real exit status or timeout.
-> Preserve full review artifacts on disk. A timeout or failed reviewer leaves
-> the review incomplete; return the failure without a clean marker. For
-> external CI, return and let the next reconcile tick observe it.
+> once in the background and await that task's notification. Preserve full
+> artifacts on disk. A failure or timeout leaves the review incomplete.
+> For external CI, return and let the next reconcile tick observe it.
+> Cancel only tasks you started, using `TaskStop` with their exact task IDs.
+> If cancellation is unavailable, report the task ID and return. Cleanup is
+> limited to your own worktree and files; process-name kills and synthetic
+> background sleep tasks are forbidden in this shared fleet.
 
-The container installs a shared tool hook that forces blocking `TaskOutput`
-waits and rejects standalone waiting echoes. It applies to review children as
-well as the coordinator. The runner owns the process timeout; the model does
-not poll it. A `TaskOutput` timeout is a bounded observation, not permission to
-restart the still-running worker.
+The shared container hook applies to coordinators and review children. It
+rejects process-name cleanup, background sleep commands, and standalone waiting
+echoes. These checks guide behavior; the controller's private tmux socket and
+separate server UID enforce the supervisor boundary (LLP 0077). The runner owns
+CLI timeouts. A bounded wait timing out does not authorize restarting a worker.
 
 ### Admission — heal broadly, start narrowly (LLP 0060)
 

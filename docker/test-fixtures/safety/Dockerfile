@@ -1,7 +1,7 @@
 ARG BASE_IMAGE=node:22-bookworm-slim
 FROM ${BASE_IMAGE}
 USER root
-RUN if ! command -v tmux >/dev/null || ! command -v setpriv >/dev/null || ! command -v tini >/dev/null; then apt-get update && apt-get install -y --no-install-recommends tmux util-linux tini && rm -rf /var/lib/apt/lists/*; fi
+RUN if ! command -v tmux >/dev/null || ! command -v setpriv >/dev/null || ! command -v tini >/dev/null; then apt-get update && apt-get install -y --no-install-recommends tmux util-linux tini procps && rm -rf /var/lib/apt/lists/*; fi
 RUN (id neutral >/dev/null 2>&1 || useradd -m -s /bin/bash neutral) && mkdir -p /work/a /var/lib/neutral-safety && chown -R neutral:neutral /work && chmod 700 /var/lib/neutral-safety
 COPY . /opt/neutral
 RUN chown -R root:root /opt/neutral && chmod -R go-w /opt/neutral && \

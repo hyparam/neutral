@@ -73,3 +73,20 @@ test('numbered waiting echoes are denied while actual commands and redirected wr
     assert.equal(waitHook({ tool_name: 'Bash', tool_input: { command } }), null)
   }
 })
+
+// @ref LLP 0077#waiting [tests] — replay the actual compound command and synthetic waits
+test('worker hook blocks cross-task cleanup and background sleep accumulation', () => {
+  for (const command of [
+    'for t in bvy77nuht bodymqd46; do pkill -f "sleep" >/dev/null 2>&1; done',
+    '/usr/bin/pkill -f sleep', 'env pkill -u neutral', 'killall node',
+    'sleep 580; echo tick', 'while true; do stat transcript.jsonl; sleep 30; done'
+  ]) {
+    assert.equal(waitHook({ tool_name: 'Bash', tool_input: { command, run_in_background: true } })?.hookSpecificOutput.permissionDecision, 'deny', command)
+  }
+  assert.equal(waitHook({ tool_name: 'Monitor', tool_input: { command: 'pkill -f sleep' } })?.hookSpecificOutput.permissionDecision, 'deny')
+  for (const input of [
+    { tool_name: 'TaskStop', tool_input: { task_id: 'owned-task' } },
+    { tool_name: 'Bash', tool_input: { command: 'npm test', run_in_background: true } },
+    { tool_name: 'Monitor', tool_input: { command: 'until curl -fsS localhost:8080; do sleep 2; done' } }
+  ]) assert.equal(waitHook(input), null)
+})

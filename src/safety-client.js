@@ -1,4 +1,5 @@
 // @ts-check
+import { readFileSync } from 'node:fs'
 import { createConnection } from 'node:net'
 /** @import { SafetyRequest } from '../docker/safety-types.d.ts' */
 
@@ -31,13 +32,14 @@ export async function safetyCommand(args) {
   const values = new Map()
   for (let i = 0; i < rest.length; i++) {
     if (rest[i] === '--json') continue
-    if (!['--session', '--incident', '--reason', '--deployment'].includes(rest[i]) || !rest[i + 1]) throw new Error('invalid safety arguments')
+    if (!['--session', '--incident', '--reason', '--deployment', '--message-file'].includes(rest[i]) || !rest[i + 1]) throw new Error('invalid safety arguments')
     values.set(rest[i], rest[++i])
   }
   /** @type {SafetyRequest} */
   const request = { action, session: values.get('--session'), incident: values.get('--incident'),
     reason: values.get('--reason'), deployment: values.get('--deployment') }
-  if (['replace', 'recycle'].includes(action)) {
+  if (action === 'send') request.message = readFileSync(values.get('--message-file') ?? 0, 'utf8')
+  if (['replace', 'recycle', 'send'].includes(action)) {
     request.session ??= process.env.NEUTRAL_LOOP_SESSION
     if (action === 'recycle') {
       if (request.session !== process.env.NEUTRAL_LOOP_SESSION || !process.env.NEUTRAL_RUN_ID) throw new Error('recycle must target this loop generation')

@@ -125,7 +125,7 @@ ENV NEUTRAL_HYPAWARE="1"
 ENV HYP_REMOTE_NAME="prod"
 ENV HYP_REMOTE_URL=""
 
-# @ref LLP 0072#controller [implements] — only the controller runs as root; all services drop to neutral
+# @ref LLP 0077#supervisor [implements] — controller and private tmux server are root; panes drop to neutral
 USER root
 RUN mkdir -p /var/lib/neutral-safety && chmod 700 /var/lib/neutral-safety
 ENV NEUTRAL_SAFETY_SOCKET="/run/neutral-safety/client.sock"

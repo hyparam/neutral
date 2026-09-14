@@ -67,3 +67,16 @@ test('hook installation is idempotent and preserves capture settings and unrelat
     assert.deepEqual(result.hooks.Stop, [])
   } finally { rmSync(dir, { recursive: true, force: true }) }
 })
+
+// @ref LLP 0077#waiting [tests] — production hook protocol refuses the incident command before execution
+test('hook executable denies the compound process cleanup command', async () => {
+  const hook = fileURLToPath(new URL('../docker/worker-wait-hook.js', import.meta.url))
+  const child = exec(process.execPath, [hook])
+  child.child.stdin?.end(JSON.stringify({ tool_name: 'Bash', tool_input: {
+    command: 'for t in first second; do pkill -f "sleep" >/dev/null 2>&1; done'
+  } }))
+  const result = JSON.parse((await child).stdout).hookSpecificOutput
+  assert.equal(result.permissionDecision, 'deny')
+  assert.match(result.permissionDecisionReason, /TaskStop/)
+  assert.equal(result.updatedInput, undefined)
+})

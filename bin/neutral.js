@@ -26,6 +26,9 @@ usage:
   neutral defer-findings <pr> <sha> <file.json>  record deferred findings; auto-admit evidenced defects only
   neutral safety status --json   inspect the container's persistent restart breaker
   neutral safety replace --session <name>  request a budgeted repair
+  neutral safety sessions       list live container sessions
+  neutral safety capture --session <name>  inspect a registered pane
+  neutral safety send --session <name> --message-file <file>  submit literal input
   neutral safety recycle        request replacement of this loop generation
   neutral safety init|rearm|stop  operator commands; see docker/SAFETY.md
   neutral start                  launch the orchestrator loop in its tmux pane (LLP 0013)

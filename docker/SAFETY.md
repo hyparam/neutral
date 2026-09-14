@@ -143,3 +143,31 @@ to a printed temporary directory. No production deployment is touched.
 The temporary external guard should remain until deployment passes these
 checks with its real restart policy and mounted safety volume. Implementing
 this code does not itself install the guard on the running fleet.
+
+## Worker process boundary (LLP 0077)
+
+The shared tmux server now runs as root, loading no user tmux configuration,
+with its socket at `/run/neutral-safety/tmux/server.sock` in a root-only
+directory. Every pane and capture helper drops to neutral. Workers cannot
+signal the server or access its socket. They use these fixed operations:
+
+```sh
+neutral safety sessions
+neutral safety capture --session neutral-hypaware
+neutral safety send --session neutral-hypaware --message-file /path/to/message.txt
+```
+
+Send reads stdin if no message file is supplied, bounds plain text to 16000
+characters, rejects control characters, and returns `submitted`. It checks the
+observed generation and refuses held fleets and service-pane input. The bridge
+and watchdog use the same submission path. Root operators can inspect directly:
+
+```sh
+docker exec --user root neutral-loop tmux -S /run/neutral-safety/tmux/server.sock list-sessions
+```
+
+A code upgrade requires image rebuild and recreation, preserving every volume,
+environment override, pinned dependency version, and the current hold. Validate
+with the fake-service smoke first. Deployment and an explicit rearm are separate
+operator actions. Workers still share one UID with each other; this change
+protects the supervisor rather than providing per-worker isolation.

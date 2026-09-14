@@ -12,6 +12,7 @@
 // injectable Exec seam (LLP 0042 R4).
 // @ref LLP 0040#socket-mode [implements] — outbound WebSocket only; no inbound ports
 
+import { safetyRequest } from '../src/safety-client.js'
 import { execFile } from 'node:child_process'
 import { pathToFileURL } from 'node:url'
 
@@ -227,7 +228,13 @@ async function main() {
   // not interleave their C-u/paste/Enter sequences in the same pane.
   let queue = Promise.resolve()
   const inject = (/** @type {string} */ framed) => {
-    const turn = queue.then(() => injectIntoPane(framed, cfg.session, tmuxExec))
+    const turn = queue.then(async () => {
+      if (!process.env.NEUTRAL_SAFETY_SOCKET) return injectIntoPane(framed, cfg.session, tmuxExec)
+      const status = await safetyRequest({ action: 'status' })
+      const run = status.loops.find((/** @type {{session: string}} */ l) => l.session === cfg.session)?.run
+      const result = await safetyRequest({ action: 'send', session: cfg.session, run, message: framed })
+      return result.submitted
+    })
       .catch(err => { log(`WARNING: tmux injection failed: ${err}`); return false })
     queue = turn.then(() => undefined)
     return turn
