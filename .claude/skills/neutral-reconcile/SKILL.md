@@ -539,9 +539,14 @@ which replies are new.
 - **`review`** (rung 3, head not yet reviewed): dispatch the review in its **own
   worktree** (never the main checkout, LLP 0012) — `dual-review` does a `gh pr
   checkout --detach` *in place* and **refuses on a dirty tree**, so it must run in a
-  clean, isolated checkout. Run the review — `dual-review` when `command -v codex`
-  succeeds, else `code-review` — on the PR number; the review itself is **worker-tier**
-  work (LLP 0020 — Codex, when present, is the independent second family). **Capture
+  clean, isolated checkout. **First review:** run `dual-review` when `command -v codex`
+  succeeds, else `code-review`, on the full PR. **Re-review after changes:** when
+  `previousReviewSha` is present, read
+  [references/incremental-review.md](references/incremental-review.md) before
+  dispatch; pass its verified baseline, prior findings, and delta scope to every
+  reviewer, including nested helpers. Use the same reviewer families with that
+  explicit scope. The review itself is **worker-tier** work (LLP 0020 — Codex,
+  when present, is the independent second family). **Capture
   the head SHA you reviewed** (the `headSha` from `neutral prs`). For each finding, record a numbered disposition: `fix` for a current-PR
   defect, `defer` for safely out-of-scope work, `reject` with evidence, or
   `blocker` for an unresolved shipping risk. A pre-existing defect can still
@@ -556,13 +561,16 @@ which replies are new.
   `clean` when the review found nothing actionable, `findings` when it found any
   (fixed or not; LLP 0029) — followed by the full review a human can act on: the
   verdict, each finding with severity and evidence (file:line), and what was fixed.
+  State the review scope, PR target branch, and comparison base SHA; incremental
+  rounds also include the previous review link and prior finding outcomes.
   **Post the record whatever the outcome** — a round that leaves no comment did not
   happen (`reviewRounds` counts these comments), and an unrecorded blocked round
   would re-review the same head forever. No separate `gh pr edit`: the comment is
   the single act. If you fixed findings the head has since moved, so the next tick
-  re-reviews the new head (round 2); if the review was `clean` the record covers
+  incrementally reviews the new head (round 2, LLP 0078); if the review was `clean` the record covers
   the current head. If findings remain at an unchanged head, the next tick
-  performs narrow triage instead of repeating the review. The CLI bounds full reviews to **N=2** rounds
+  performs narrow triage instead of repeating the review. The CLI bounds reviews
+  (full or incremental) to **N=2** rounds
   and also returns `triage` for unchanged findings — plus any budget a human granted in the thread with a
   `neutral: rounds +N` comment (LLP 0059; the CLI folds grants into the cap, so trust
   the `action` field as ever — no skill-side arithmetic).

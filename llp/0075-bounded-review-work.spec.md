@@ -38,6 +38,9 @@ claim that arbitrary agent tool use cannot waste tokens.
 <a id="disposition"></a>
 ## Disposition before another review
 
+Extended-by: LLP 0078 — changed heads reuse the previous review and inspect
+the delta, prior fixes, and affected interactions by default.
+
 After mergeability and CI, the latest `findings` review at an unchanged head
 routes to `triage` immediately, without marking it approved. New heads still
 follow the existing review cap. The CLI exposes `canFix` when another review
