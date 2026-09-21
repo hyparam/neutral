@@ -64,6 +64,24 @@ without capture; the guard itself is mandatory either way.
 
 ## Repairs, stops, and holds
 
+### Auxiliary model requests
+
+The image defaults `CLAUDE_CODE_ENABLE_PROMPT_SUGGESTION`,
+`CLAUDE_CODE_FORK_SUBAGENT`, and `CLAUDE_CODE_COORDINATOR_MODE` to `false`.
+These disable suggested next user messages and automatic agent progress-label
+requests for the unattended interactive loops. With Claude Code 2.1.252,
+progress summaries are coupled to fork/coordinator mode: this also disables
+the special built-in fork subagent that inherits the parent conversation.
+Normal background and review subagents remain available.
+
+Keep the same values in deployment environment overrides. Recheck these
+controls when upgrading Claude Code; their coupling is version-specific.
+Environment changes take effect in newly launched processes, so recreate the
+container through the planned deployment path below. Neither these settings
+nor deployment clear an existing account quota limit or fleet safety hold.
+
+### Recovery operations
+
 A watchdog or operator repairs a registered loop through the same gate:
 
 ```sh
