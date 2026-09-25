@@ -22,8 +22,9 @@ FROM node:22-bookworm-slim
 
 # git + gh are the loop's ground-truth controllers; tmux is required for context
 # autophagy (the pane is the respawn mutex — LLP 0013).
+# Bookworm supplies Python 3.11 for worker scripts; support both command names.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      git tmux curl ca-certificates jq procps util-linux tini \
+      git tmux curl ca-certificates jq procps util-linux tini python3 python-is-python3 \
   && curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
       -o /usr/share/keyrings/githubcli-archive-keyring.gpg \
   && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
@@ -57,6 +58,7 @@ RUN ln -s /opt/neutral/bin/neutral.js /usr/local/bin/neutral
 
 USER neutral
 RUN neutral --help > /dev/null
+RUN sh /opt/neutral/docker/check-python.sh
 
 # Expose neutral's skills user-level so /neutral-reconcile resolves inside any
 # target repo (same shape as a ~/.claude/skills symlink on a dev machine).
