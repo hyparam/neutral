@@ -6,6 +6,7 @@
 **Author:** Phil / Codex
 **Date:** 2026-09-10
 **Related:** 0002, 0010, 0017, 0029, 0059, 0060, 0071
+**Extended-by:** LLP 0081 (the bounded runner becomes the worker launcher; results and review findings are typed and evidence-bound)
 
 The September 10 production review audit found 909 waiting-only commands in
 one worker, unchanged-head full reviews driven by scope/prose findings, and

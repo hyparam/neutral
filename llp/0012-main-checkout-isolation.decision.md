@@ -6,6 +6,7 @@
 **Author:** Phil
 **Date:** 2026-06-25
 **Related:** 0002, 0003, 0008, 0010, 0011
+**Extended-by:** LLP 0081 (the launcher creates and verifies each worker's detached worktree before the model starts)
 
 ## Context
 

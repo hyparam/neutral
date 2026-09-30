@@ -6,6 +6,7 @@
 **Author:** Phil / Claude
 **Date:** 2026-07-03
 **Related:** 0002, 0009, 0020, 0022
+**Extended-by:** LLP 0081 (attempts are classified by failure class and persisted across restarts)
 
 ## Context
 

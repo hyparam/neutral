@@ -6,6 +6,7 @@
 **Author:** Phil / Claude
 **Date:** 2026-07-03
 **Related:** 0002, 0003, 0009, 0010, 0013, 0017, 0021, 0022
+**Extended-by:** LLP 0081 (only an attributable implementation failure may escalate the model)
 
 ## Context
 
