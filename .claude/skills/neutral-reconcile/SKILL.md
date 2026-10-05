@@ -119,6 +119,10 @@ work, the tick verifies it.
      least-recently-run one past its cooldown and not damped, LLP 0047) — run that
      member's initiative (code cleanup, below), then **return** and let the loop
      schedule the next tick.
+     For `"pr-backlog"`, read and follow
+     [PR backlog autophagy](references/pr-backlog-autophagy.md) (LLP 0079).
+     Its no-op hint is `--backlog-snapshot <fingerprint>` on subsequent idle
+     calls, separate from the target-HEAD-based `--damped` members.
    - `null` — **return**; the loop schedules the next tick (`ScheduleWakeup`). This
      is a legitimate, common outcome: every member may be off, cooling down since a
      recent PR disposition, or no-op damped. A deliberately idle tick is correct, not
@@ -139,21 +143,26 @@ action.
 
 Include this completion contract in every dispatched worker prompt:
 
-> Await background agents through the harness completion notification or
-> `TaskOutput` with the task ID and `block: true, timeout: 600000`. Finish
-> independent work first. For a CLI reviewer, run
+> After starting a background agent or forked skill, finish independent work,
+> then end your turn and await its completion notification. If `TaskOutput`
+> is available, use the returned task ID with `block: true, timeout: 600000`.
+> If tool discovery says it is unavailable, use the notification path. Keep
+> the review incomplete until its actual result arrives; transcript silence
+> and file timestamps are not completion. For a CLI reviewer, run
 > `neutral run-worker --timeout-ms 1800000 -- <reviewer-command> <args...>`
-> once using Bash background execution; await that task's completion. The
-> runner buffers bounded output and returns the real exit status or timeout.
-> Preserve full review artifacts on disk. A timeout or failed reviewer leaves
-> the review incomplete; return the failure without a clean marker. For
-> external CI, return and let the next reconcile tick observe it.
+> once in the background and await that task's notification. Preserve full
+> artifacts on disk. A failure or timeout leaves the review incomplete.
+> For external CI, return and let the next reconcile tick observe it.
+> Cancel only tasks you started, using `TaskStop` with their exact task IDs.
+> If cancellation is unavailable, report the task ID and return. Cleanup is
+> limited to your own worktree and files; process-name kills and synthetic
+> background sleep tasks are forbidden in this shared fleet.
 
-The container installs a shared tool hook that forces blocking `TaskOutput`
-waits and rejects standalone waiting echoes. It applies to review children as
-well as the coordinator. The runner owns the process timeout; the model does
-not poll it. A `TaskOutput` timeout is a bounded observation, not permission to
-restart the still-running worker.
+The shared container hook applies to coordinators and review children. It
+rejects process-name cleanup, background sleep commands, and standalone waiting
+echoes. These checks guide behavior; the controller's private tmux socket and
+separate server UID enforce the supervisor boundary (LLP 0077). The runner owns
+CLI timeouts. A bounded wait timing out does not authorize restarting a worker.
 
 ### Admission — heal broadly, start narrowly (LLP 0060)
 
@@ -212,10 +221,10 @@ tick's log lines (R2 — nothing may follow this destructive act):
   `tick: family=autophagy action=recycle detail=context=<N> threshold=<T>`, then
   **respawn the pane** — the tick's last act:
   ```sh
-  tmux respawn-pane -k "claude --model 'claude-opus-5[1m]' --dangerously-skip-permissions '/loop /neutral-reconcile'"
+  tmux respawn-pane -k "ANTHROPIC_DEFAULT_FABLE_MODEL=claude-fable-5-1 claude --model 'opus[1m]' --dangerously-skip-permissions '/loop /neutral-reconcile'"
   ```
-  **Pin the model** to the 1M-context Opus 5 (the worker tier, matching `neutral
-  start` — LLP 0020): an unpinned respawn silently reverts the fresh orchestrator to
+  **Select `opus[1m]`** for the 1M-context worker tier (matching `neutral
+  start` — LLP 0020): a respawn without `--model` silently reverts the fresh orchestrator to
   the machine's session default, which may be a different tier or a 200K window too
   small for the autophagy threshold T (LLP 0013). Single-quote the `[1m]` token so `sh`
   doesn't glob the brackets. **Keep `--dangerously-skip-permissions`**: the loop is
@@ -296,7 +305,13 @@ model's failure just re-opens the gap — so cheap models run wherever a verifie
 the result, and the strongest is reserved for judgement no machine re-checks. When you
 dispatch a worker below, pass the tier's model as the sub-agent's `model`:
 
-- **Judgment tier — `claude-fable-5-1`, at `high` effort.** Output no verifier re-derives, where
+The Agent tool accepts family aliases. Launch with
+`ANTHROPIC_DEFAULT_FABLE_MODEL=claude-fable-5-1` so `model: "fable"` selects
+Fable 5.1; `neutral start` and the Docker image set this binding. The Workflow
+keeps its explicit model ID. After a CLI or model-binding update, recycle the
+running loops and verify the response model in recorded usage.
+
+- **Judgment tier — `fable`, at `high` effort.** Output no verifier re-derives, where
   an error propagates: the **Designer**, the **Impl-designer**, and the **triage** rung.
   Run Fable 5.1 at **`high`**, not Claude Code's `xhigh` default — Fable 5.1 at `high` still
   exceeds prior models at their ceiling, so it's a low-risk cost lever on the priciest
@@ -304,14 +319,18 @@ dispatch a worker below, pass the tier's model as the sub-agent's `model`:
   tool has no per-call `effort` override**, so the Designer/Impl-designer/triage inherit
   the **session** effort — run the orchestrator loop at `high` if you want them capped
   there too.
-- **Worker tier — `opus` (Opus 5).** Bounded work behind a hard gate: **conflict
+- **Worker tier — `opus` (Opus).** Bounded work behind a hard gate: **conflict
   resolution**, **issue-fix**, the Claude half of **review**, and the **orchestrator
-  itself** (pinned at launch — LLP 0020; the tick is mechanical, the CLI decides every
+  itself** (selected explicitly at launch — LLP 0020; the tick is mechanical, the CLI decides every
   rung).
 - **Mechanical tier — `sonnet`, or `haiku` for pure CLI relay.** Fully verifier-gated
   execution: **task implementation** and its **serial merger**, **fix-ci**,
   **review-fix** agents, and **derive-ready** (haiku). The implement Workflow already
   sets these per `agent()` call.
+
+The `opus` and `sonnet` aliases follow the versions provided by the installed
+Claude Code and provider. Keep Claude Code current; `ANTHROPIC_DEFAULT_OPUS_MODEL`
+and `ANTHROPIC_DEFAULT_SONNET_MODEL` can override these aliases.
 
 **Retry escalation (LLP 0021/0022).** A task's *first* attempt starts at the tier its
 planner-rated `complexity` seeds (1–3 mechanical, 4 worker, 5 judgment; absent ⇒
@@ -322,7 +341,7 @@ escalation changes *which model retries*, never *what counts as done*. The imple
 Workflow's wave loop owns this ladder end-to-end; the other rungs below take a single
 tier per their heading.
 
-## Fan-out worker: Designer (pipeline)  — judgment tier (`claude-fable-5-1`)
+## Fan-out worker: Designer (pipeline)  — judgment tier (`fable`)
 
 Goal: every live request is `@ref`'d by a `design` LLP. Plan the **whole** backlog
 up front, then mint only the groups covered by this tick's reserved admission slots
@@ -350,7 +369,7 @@ up front, then mint only the groups covered by this tick's reserved admission sl
      the remote branch); then `cd <repo> && git worktree remove --force "$WT"`.
 4. **Verify:** `neutral backlog` is now **empty**. Never commit a design to the target branch.
 
-## Fan-out worker: Impl-designer (pipeline)  — judgment tier (`claude-fable-5-1`)
+## Fan-out worker: Impl-designer (pipeline)  — judgment tier (`fable`)
 
 Goal: every implementable `design` LLP has a `plan` LLP on its `integration/<slug>`
 branch. A design is implementable two ways: **neutral-minted** (already on
@@ -382,7 +401,7 @@ content edit — immutability holds) so the merged change set reads as shipped (
    Encode real code dependencies in `deps`. **Rate each task's `complexity` 1–5**
    (LLP 0022) — your judgement, made here with the whole design in view, seeds the
    first implementation attempt's model tier: **1–3** a mechanical task (Sonnet),
-   **4** needs the worker tier (Opus 5), **5** needs judgement (Fable 5.1). Rate for
+   **4** needs the worker tier (Opus), **5** needs judgement (Fable 5.1). Rate for
    the *hardest* part of the task; be honest, not generous — the rating only seeds
    the entry rung and a verified failure still escalates (LLP 0021), so under-rating
    costs one climbing attempt, over-rating overpays. Omit `complexity` only when you
@@ -534,9 +553,14 @@ which replies are new.
 - **`review`** (rung 3, head not yet reviewed): dispatch the review in its **own
   worktree** (never the main checkout, LLP 0012) — `dual-review` does a `gh pr
   checkout --detach` *in place* and **refuses on a dirty tree**, so it must run in a
-  clean, isolated checkout. Run the review — `dual-review` when `command -v codex`
-  succeeds, else `code-review` — on the PR number; the review itself is **worker-tier**
-  work (LLP 0020 — Codex, when present, is the independent second family). **Capture
+  clean, isolated checkout. **First review:** run `dual-review` when `command -v codex`
+  succeeds, else `code-review`, on the full PR. **Re-review after changes:** when
+  `previousReviewSha` is present, read
+  [references/incremental-review.md](references/incremental-review.md) before
+  dispatch; pass its verified baseline, prior findings, and delta scope to every
+  reviewer, including nested helpers. Use the same reviewer families with that
+  explicit scope. The review itself is **worker-tier** work (LLP 0020 — Codex,
+  when present, is the independent second family). **Capture
   the head SHA you reviewed** (the `headSha` from `neutral prs`). For each finding, record a numbered disposition: `fix` for a current-PR
   defect, `defer` for safely out-of-scope work, `reject` with evidence, or
   `blocker` for an unresolved shipping risk. A pre-existing defect can still
@@ -551,13 +575,16 @@ which replies are new.
   `clean` when the review found nothing actionable, `findings` when it found any
   (fixed or not; LLP 0029) — followed by the full review a human can act on: the
   verdict, each finding with severity and evidence (file:line), and what was fixed.
+  State the review scope, PR target branch, and comparison base SHA; incremental
+  rounds also include the previous review link and prior finding outcomes.
   **Post the record whatever the outcome** — a round that leaves no comment did not
   happen (`reviewRounds` counts these comments), and an unrecorded blocked round
   would re-review the same head forever. No separate `gh pr edit`: the comment is
   the single act. If you fixed findings the head has since moved, so the next tick
-  re-reviews the new head (round 2); if the review was `clean` the record covers
+  incrementally reviews the new head (round 2, LLP 0078); if the review was `clean` the record covers
   the current head. If findings remain at an unchanged head, the next tick
-  performs narrow triage instead of repeating the review. The CLI bounds full reviews to **N=2** rounds
+  performs narrow triage instead of repeating the review. The CLI bounds reviews
+  (full or incremental) to **N=2** rounds
   and also returns `triage` for unchanged findings — plus any budget a human granted in the thread with a
   `neutral: rounds +N` comment (LLP 0059; the CLI folds grants into the cap, so trust
   the `action` field as ever — no skill-side arithmetic).

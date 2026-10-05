@@ -252,13 +252,11 @@ Then:
   delivered for the next human or fix attempt to read, no more.
 - **Explicit instruction to steer a loop** ("tell the hypaware loop to …") →
   inject the human's text verbatim into that loop's pane with the LLP 0034
-  discipline: `tmux send-keys -t '=neutral-<name>:' C-u` first (the trailing
-  colon matters — send-keys takes a pane target, and a bare `=name` fails on
-  tmux 3.3a; it also clears any harness
-  prefill — never press Enter on text you did not type), then the message, then
-  Enter; verify within ~30 s that it left the input box (one extra Enter if
-  swallowed). Confirm in the thread once submission is verified. You steer only
-  on a human request; healing on your own judgment is the watchdog's job
+  discipline: write the literal message to a file you own, then run
+  `neutral safety send --session neutral-<name> --message-file <file>`.
+  The controller clears prefill, pastes without interpreting shell syntax,
+  and verifies submission. Confirm in the thread only when `submitted` is
+  true. You steer only on a human request; healing on your own judgment is the watchdog's job
   (LLP 0041 §report-relay).
 - **An ask to raise a PR's review budget** ("give hypaware#12 two more review
   rounds") → author a comment on that PR — the rare authored case (LLP 0042):
@@ -271,7 +269,8 @@ Then:
   unmarked relay above *is* the grant, since human comments grant directly.)
 - **A question** → answer from ground truth re-derived *now* — `neutral prs
   --json` / `neutral backlog --json` / `neutral issues --json` in the clones,
-  `gh`, transcripts, `tmux capture-pane` — never from memory of a past tick.
+  `gh`, transcripts, `neutral safety capture --session <session>` — never from
+  memory of a past tick.
   If the question asks **how or why Neutral works** — its pipeline, reconciler
   roles, artifacts, state transitions, scheduling, admission, review rungs,
   authority boundaries, or why an artifact is in a state — call the Skill tool

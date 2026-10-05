@@ -1,14 +1,22 @@
 // @ts-check
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import { execFileSync } from 'node:child_process'
 import { tmuxStartArgv, startCommand, sessionName, LOOP_SHELL_COMMAND } from '../src/commands/start.js'
+
+// @ref LLP 0020#decision [tests] — Agent accepts aliases; its Fable binding must reach child processes
+test('launcher exports the judgment model binding to Claude and its workers', () => {
+  const script = `claude() { sh -c 'printf "%s" "$ANTHROPIC_DEFAULT_FABLE_MODEL"'; }; ${LOOP_SHELL_COMMAND}`
+  const output = execFileSync('sh', ['-c', script], { encoding: 'utf8', env: { PATH: process.env.PATH } })
+  assert.equal(output, 'claude-fable-5-1')
+})
 
 test('tmuxStartArgv: idempotent attach-or-create, detached when nested', () => {
   assert.deepEqual(tmuxStartArgv({ session: 'neutral-x' }), ['new-session', '-A', '-s', 'neutral-x', LOOP_SHELL_COMMAND])
   assert.deepEqual(tmuxStartArgv({ session: 'neutral-x', nested: true }), ['new-session', '-d', '-A', '-s', 'neutral-x', LOOP_SHELL_COMMAND])
   // the loop command runs via sh -c, with the orchestrator pinned to the 1M-context
-  // Opus 5 (LLP 0020); the model token is single-quoted so sh doesn't glob `[1m]`
-  assert.equal(LOOP_SHELL_COMMAND, "claude --model 'claude-opus-5[1m]' --dangerously-skip-permissions '/loop /neutral-reconcile'")
+  // Opus (LLP 0020); the model token is single-quoted so sh doesn't glob `[1m]`
+  assert.equal(LOOP_SHELL_COMMAND, "ANTHROPIC_DEFAULT_FABLE_MODEL=claude-fable-5-1 claude --model 'opus[1m]' --dangerously-skip-permissions '/loop /neutral-reconcile'")
 })
 
 test('sessionName: per-repo `neutral-<folder>`, sanitized, with a bare fallback (LLP 0014)', () => {

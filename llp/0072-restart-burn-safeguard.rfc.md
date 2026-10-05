@@ -10,6 +10,8 @@
 
 ## Recommendation
 
+Extended-by: LLP 0077 (owned waiting and protected tmux supervision).
+
 Put a deterministic circuit breaker ahead of every automatic loop start and
 replacement. Permit one recovery in a rolling hour; the second failure
 places the entire loop fleet on a persistent safety hold **before another

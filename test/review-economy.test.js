@@ -30,6 +30,39 @@ test('the latest review controls early disposition; stale findings cannot replac
   assert.equal(selectRung({ ...pr, foreign: true }).action, 'review')
 })
 
+// @ref LLP 0078#baseline [tests] — changed heads carry the latest observed baseline without granting approval
+test('re-review exposes the latest clean or findings record, while the first review has no baseline', () => {
+  const first = selectRung({ ...pr, comments: [] })
+  assert.equal(first.action, 'review')
+  assert.equal(first.previousReviewSha, undefined)
+  for (const verdict of ['clean', 'findings']) {
+    const result = selectRung({ ...pr, headSha: 'ccccccc', comments: [
+      ...pr.comments,
+      { ...pr.comments[0], body: `<!-- neutral-review: bbbbbbb ${verdict} -->` }
+    ] }, 3)
+    assert.equal(result.action, 'review')
+    assert.equal(result.previousReviewSha, 'bbbbbbb')
+    assert.equal(result.approved, undefined)
+  }
+  const legacy = selectRung({ ...pr, body: '<!-- neutral-review: aaaaaaa -->', comments: [] })
+  assert.equal(legacy.previousReviewSha, 'aaaaaaa')
+})
+
+test('incremental scope does not bypass unchanged findings, CI, the round cap or foreign-review boundaries', () => {
+  const changed = { ...pr, headSha: 'bbbbbbb' }
+  for (const result of [
+    selectRung(pr),
+    selectRung(changed, 1),
+    selectRung({ ...changed, rollup: [{ status: 'IN_PROGRESS' }] }),
+    selectRung({ ...changed, foreign: true })
+  ]) assert.equal(result.previousReviewSha, undefined)
+  assert.equal(selectRung(pr).action, 'triage')
+  assert.equal(selectRung(changed, 1).action, 'triage')
+  assert.equal(selectRung({ ...changed, rollup: [{ status: 'IN_PROGRESS' }] }).action, 'wait')
+  const grant = { ...pr.comments[0], body: 'neutral: rounds +1' }
+  assert.equal(selectRung({ ...changed, comments: [...pr.comments, grant] }, 1).previousReviewSha, pr.headSha)
+})
+
 const preference = { ordinal: 1, disposition: 'defer', kind: 'preference', severity: 'minor', title: 'Rename local helper',
   location: 'src/a.js:9', evidence: 'The current name is abbrevi­ated.', reason: 'No behavior changes.',
   acceptance: 'Use the longer descriptive name.' }
@@ -72,4 +105,21 @@ test('numbered waiting echoes are denied while actual commands and redirected wr
   for (const command of ['git status', 'echo waiting > status.txt', 'echo "waiting $(git status)"', 'echo waiting; ps aux', 'echo "pending" | cat']) {
     assert.equal(waitHook({ tool_name: 'Bash', tool_input: { command } }), null)
   }
+})
+
+// @ref LLP 0077#waiting [tests] — replay the actual compound command and synthetic waits
+test('worker hook blocks cross-task cleanup and background sleep accumulation', () => {
+  for (const command of [
+    'for t in bvy77nuht bodymqd46; do pkill -f "sleep" >/dev/null 2>&1; done',
+    '/usr/bin/pkill -f sleep', 'env pkill -u neutral', 'killall node',
+    'sleep 580; echo tick', 'while true; do stat transcript.jsonl; sleep 30; done'
+  ]) {
+    assert.equal(waitHook({ tool_name: 'Bash', tool_input: { command, run_in_background: true } })?.hookSpecificOutput.permissionDecision, 'deny', command)
+  }
+  assert.equal(waitHook({ tool_name: 'Monitor', tool_input: { command: 'pkill -f sleep' } })?.hookSpecificOutput.permissionDecision, 'deny')
+  for (const input of [
+    { tool_name: 'TaskStop', tool_input: { task_id: 'owned-task' } },
+    { tool_name: 'Bash', tool_input: { command: 'npm test', run_in_background: true } },
+    { tool_name: 'Monitor', tool_input: { command: 'until curl -fsS localhost:8080; do sleep 2; done' } }
+  ]) assert.equal(waitHook(input), null)
 })

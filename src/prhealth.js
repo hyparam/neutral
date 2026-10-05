@@ -502,7 +502,11 @@ export function selectRung(pr, maxReviewRounds = DEFAULT_REVIEW_ROUNDS, automerg
     if (reviewRounds(pr.body, pr.comments) >= cap) {
       return { rung: 'reviewed', action: 'triage', canFix: false, reason: `${cap} review round(s) exhausted${granted ? ` (${maxReviewRounds} + ${granted} granted in-thread)` : ''} — triage residual findings (record safe deferrals, auto-admit evidenced defects only, else neutral:stuck)` }
     }
-    return { rung: 'reviewed', action: 'review', reason: 'head not yet reviewed — run the review, fix findings, post the marker-signed review record comment' }
+    // @ref LLP 0078#baseline [implements] — expose the prior record; the worker verifies its commit and scope
+    return { rung: 'reviewed', action: 'review', ...(latest ? { previousReviewSha: latest.sha } : {}),
+      reason: latest
+        ? 'head changed since review — verify the previous review baseline, review the delta and prior fixes, record any scope expansion'
+        : 'head not yet reviewed — run the review, fix findings, post the marker-signed review record comment' }
   }
 
   // Final-head ship-risk gate (LLP 0062/0069). `neutral:approved` means the

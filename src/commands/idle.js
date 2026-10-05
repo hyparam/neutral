@@ -20,8 +20,10 @@ import { collectIssues } from './issues.js'
 import { idleState } from '../idle.js'
 import { admissionState } from '../admission.js'
 import { selectInitiative } from '../autophagy.js'
-import { listDisposedAutophagyPRs } from '../github.js'
+import { listDisposedAutophagyPRs, observePRBacklog } from '../github.js'
 import { readContextSize } from '../context.js'
+
+/** @import { AdmissionState, IdleBlocker, MemberState, PRBacklogObservation } from '../types.d.ts' */
 
 /**
  * Evaluate the full idle-tick autophagy trigger from ground truth. `contextSize` is null
@@ -35,18 +37,19 @@ import { readContextSize } from '../context.js'
  * @param {string} repo
  * @param {typeof run} [exec]
  * @param {() => (number|null)} [readCtx]
- * @param {{ now?: number, damped?: string[] }} [opts]
- * @returns {Promise<{ idle: boolean, recycle: boolean, initiative: string|null, contextSize: number|null, threshold: number, admission: import('../types.d.ts').AdmissionState, blockers: import('../types.d.ts').IdleBlocker[], members: import('../types.d.ts').MemberState[] }>}
+ * @param {{ now?: number, damped?: string[], backlogSnapshot?: string }} [opts]
+ * @returns {Promise<{ idle: boolean, recycle: boolean, initiative: string|null, contextSize: number|null, threshold: number, admission: AdmissionState, blockers: IdleBlocker[], members: MemberState[], prBacklog: PRBacklogObservation|null }>}
  */
-export async function collectIdle(repo, exec = run, readCtx = readContextSize, { now = Date.now(), damped = [] } = {}) {
+export async function collectIdle(repo, exec = run, readCtx = readContextSize, { now = Date.now(), damped = [], backlogSnapshot } = {}) {
   const config = loadConfig(repo)
   const { contextRecycleThreshold: threshold, maxActiveWork } = config
-  const [{ backlog }, implementable, prs, issues, disposed] = await Promise.all([
+  const [{ backlog }, implementable, prs, issues, disposed, prBacklog] = await Promise.all([
     collectBacklog(repo),
     collectImplementable(repo, exec),
     collectPRs(repo, exec),
     collectIssues(repo, exec),
-    listDisposedAutophagyPRs(repo, exec)
+    listDisposedAutophagyPRs(repo, exec),
+    config.autophagy.prBacklog ? observePRBacklog(repo, exec) : Promise.resolve(null)
   ])
   // After the PR observation: `create-pr` vs "rollup in flight" needs the open heads.
   // @ref LLP 0052#idle-extension [implements] — the idle predicate sees change-set gaps
@@ -55,14 +58,20 @@ export async function collectIdle(repo, exec = run, readCtx = readContextSize, {
   const admission = admissionState({ changesets, prs, issues }, maxActiveWork)
   const contextSize = readCtx()
   const recycle = idle && contextSize !== null && contextSize > threshold
-  const { initiative: member, members } = selectInitiative({ openPRs: prs, disposed, config, now, damped })
+  // @ref LLP 0079#damping [implements] — new PRs/replies/base movement invalidate the hint
+  const currentDamped = damped.filter(id => id !== 'pr-backlog')
+  if (prBacklog?.fingerprint && prBacklog.fingerprint === backlogSnapshot) currentDamped.push('pr-backlog')
+  // Full enumeration also catches autophagy heads beyond the maintenance list cap.
+  const openPRs = prBacklog?.fingerprint ? prBacklog.prs : prs
+  const { initiative: member, members } = selectInitiative({ openPRs, disposed, config, now,
+    damped: currentDamped, backlogCount: prBacklog?.fingerprint ? prBacklog.prs.length : null })
   // @ref LLP 0035#priority [implements] — recycle preempts repo hygiene
   // @ref LLP 0047#selection [implements] — else the LRR member, else null
   // Repo-hygiene creates a new work surface, so the same admission gate applies.
   // Context recycle creates no repo work and may still run while intake is paused.
   // @ref LLP 0060#admission-control [implements]
   const initiative = recycle ? 'recycle' : (idle && admission.open ? member : null)
-  return { idle, recycle, initiative, contextSize, threshold, admission, blockers, members }
+  return { idle, recycle, initiative, contextSize, threshold, admission, blockers, members, prBacklog }
 }
 
 /**
@@ -77,7 +86,9 @@ export async function idleCommand(repo, args, exec = run, readCtx = readContextS
   // that scanned the current target HEAD and found nothing. A scheduling hint, not a fact.
   const dampedArg = args[args.indexOf('--damped') + 1]
   const damped = args.includes('--damped') && dampedArg ? dampedArg.split(',').map(s => s.trim()).filter(Boolean) : []
-  const s = await collectIdle(repo, exec, readCtx, { damped })
+  const snapshotIndex = args.indexOf('--backlog-snapshot')
+  const backlogSnapshot = snapshotIndex >= 0 ? args[snapshotIndex + 1] : undefined
+  const s = await collectIdle(repo, exec, readCtx, { damped, backlogSnapshot })
   if (args.includes('--json')) {
     process.stdout.write(JSON.stringify(s, null, 2) + '\n')
   } else {

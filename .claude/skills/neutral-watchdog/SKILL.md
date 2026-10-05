@@ -1,7 +1,7 @@
 ---
 name: neutral-watchdog
 description: One watchdog tick for the neutral-loop container — health-check every reconcile-loop tmux session against transcript ground truth, and heal wedged loops (nudge the live session, or respawn it). Runs as the third loop, `/loop 55m /neutral-watchdog`, inside the container (LLP 0034). Use only there — it assumes the container's shared tmux server and /work layout.
-allowed-tools: Bash, Read
+allowed-tools: Bash, Read, Monitor
 ---
 
 # neutral-watchdog
@@ -16,12 +16,11 @@ confirmation. Every decision below is yours to make from observed state.
 
 ## Targets
 
-Sessions named `neutral-*` on the local tmux server (`tmux ls -F
-'#{session_name}'`), **excluding your own session** (`tmux display-message -p
-'#S'`) and `hyp-daemon`. Session `neutral-<name>` ↔ working dir `/work/<name>` ↔
-transcripts `~/.claude/projects/-work-<name>/*.jsonl` — **except
-`neutral-mayor`**, recognized by name (next bullet); the name→repo mapping
-never applies to it.
+Use `neutral safety sessions` to enumerate live `neutral-*` sessions, excluding
+your own `$NEUTRAL_LOOP_SESSION`. The controller owns the private tmux
+socket; use its `capture`, `send`, and `replace` operations instead of direct
+tmux commands. Session `neutral-<name>` maps to `/work/<name>` and transcripts
+`~/.claude/projects/-work-<name>/*.jsonl`, except `neutral-mayor` below.
 
 - **`neutral-mayor` is a target, but not a reconcile loop** (LLP 0039). It runs
   in `/work` itself (like you), so its transcripts sit in
@@ -57,7 +56,7 @@ never applies to it.
    Newer than **45 minutes** (loops promise ≤30-minute heartbeats, LLP 0013) →
    **healthy**, log and move on.
 
-2. **Pane state** (`tmux capture-pane -p -t <session>`), only for stale sessions:
+2. **Pane state** (`neutral safety capture --session <session>`), only for stale sessions:
    - **Working**: a live spinner / "esc to interrupt" footer — a long fan-out can
      be transcript-quiet while agents run. Treat as healthy-busy; do not nudge
      mid-work. If it is still stale *and* the pane is unchanged next tick, treat
@@ -66,9 +65,8 @@ never applies to it.
      suggested next messages there (e.g. `stop the loop`, `keep going`) — it is
      NOT human input and NOT a wedge sign. Leave it alone; **never press Enter
      on text you did not type** — that submits the suggestion as a real
-     message. When you nudge (below), clear the input line first with
-     `tmux send-keys -t <session> C-u` so your message does not concatenate
-     with the prefill.
+     message. The controller clears the input line before pasting your nudge, so it
+     cannot concatenate with the prefill.
    - **Interactive dialog/menu** (trust prompt, theme picker, permission ask,
      folder-sync menu): do not guess an answer — this is a respawn case.
    - **Idle prompt after an error** (e.g. `API Error` with an empty input box):
@@ -76,19 +74,20 @@ never applies to it.
 
 ## Heal — gentlest act that works (LLP 0034 §recovery-ladder)
 
-1. **Nudge** (wedged, session alive, no dialog): send one resume message stating
-   what you observed, then Enter:
+1. **Nudge** (wedged, session alive, no dialog): write one resume message
+   stating the observed last-event time to a file you own, then submit it:
 
    ```bash
-   tmux send-keys -t <session> "keep going - your last transcript event is <ISO time> and no heartbeat is armed. Re-derive ground truth, run a reconcile tick, and re-arm the heartbeat." Enter
+   neutral safety send --session <session> --message-file <message-file>
    ```
 
-   **Verify submission**: within ~30 s the text must leave the input box and a
-   spinner appear; if it still sits in the prompt, send `Enter` once more (the
-   first can be swallowed as a paste). Then **verify recovery**: a new transcript
-   event within ~5 min (bounded `until` loop re-running the staleness check). The
-   nudge is preferred because it keeps the session's accumulated context and lets
-   it resume mid-flight work.
+   The controller checks the current generation, clears prefill, pastes the
+   literal message, and verifies submission with at most one extra Enter.
+   Check the returned `submitted` value. Then verify a new transcript event
+   within five minutes using a bounded Monitor condition when available. If
+   Monitor is unavailable, record recovery as unverified and recheck next tick.
+   A submitted message alone is not evidence of recovery. The nudge preserves
+   accumulated context.
 
 2. **Respawn** (nudge failed its verification, interactive dialog, or missing
    session): read the pane tail and last transcript events, then ask the

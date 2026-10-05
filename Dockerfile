@@ -22,8 +22,9 @@ FROM node:22-bookworm-slim
 
 # git + gh are the loop's ground-truth controllers; tmux is required for context
 # autophagy (the pane is the respawn mutex — LLP 0013).
+# Bookworm supplies Python 3.11 for worker scripts; support both command names.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      git tmux curl ca-certificates jq procps util-linux tini \
+      git tmux curl ca-certificates jq procps util-linux tini python3 python-is-python3 \
   && curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
       -o /usr/share/keyrings/githubcli-archive-keyring.gpg \
   && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
@@ -50,10 +51,14 @@ RUN useradd -m -s /bin/bash neutral \
 # neutral itself — the deterministic CLI has no runtime deps, so a symlink is
 # the whole install.
 COPY . /opt/neutral
-RUN chown -R root:root /opt/neutral && chmod -R go-w /opt/neutral
+# Build contexts can be extracted under a restrictive umask. Workers must be
+# able to read/traverse the installed source while only root can modify it.
+RUN chown -R root:root /opt/neutral && chmod -R a+rX,go-w /opt/neutral
 RUN ln -s /opt/neutral/bin/neutral.js /usr/local/bin/neutral
 
 USER neutral
+RUN neutral --help > /dev/null
+RUN sh /opt/neutral/docker/check-python.sh
 
 # Expose neutral's skills user-level so /neutral-reconcile resolves inside any
 # target repo (same shape as a ~/.claude/skills symlink on a dev machine).
@@ -84,8 +89,18 @@ ARG NEUTRAL_REPOS=""
 ENV NEUTRAL_REPOS=$NEUTRAL_REPOS
 
 # Overridable knobs (defaults mirror src/commands/start.js).
-ENV NEUTRAL_MODEL="claude-opus-5[1m]"
+# Agent model overrides accept aliases; bind the judgment tier for every loop.
+ENV ANTHROPIC_DEFAULT_FABLE_MODEL="claude-fable-5-1"
+ENV NEUTRAL_MODEL="opus[1m]"
 ENV NEUTRAL_CLAUDE_ARGS="--dangerously-skip-permissions"
+
+# Unattended loops do not need suggested user prompts or periodic progress-label
+# model calls. In Claude Code 2.1.252, agent summaries are coupled to fork and
+# coordinator modes; ordinary background/review subagents remain available.
+# Keep these as image defaults so a rebuild does not re-enable auxiliary usage.
+ENV CLAUDE_CODE_ENABLE_PROMPT_SUGGESTION="false"
+ENV CLAUDE_CODE_FORK_SUBAGENT="false"
+ENV CLAUDE_CODE_COORDINATOR_MODE="false"
 
 # Watchdog: a third LLM loop that hourly heals wedged reconcile loops
 # (LLP 0034). Set NEUTRAL_WATCHDOG=0 to disable the LLM watchdog.
@@ -125,7 +140,7 @@ ENV NEUTRAL_HYPAWARE="1"
 ENV HYP_REMOTE_NAME="prod"
 ENV HYP_REMOTE_URL=""
 
-# @ref LLP 0072#controller [implements] — only the controller runs as root; all services drop to neutral
+# @ref LLP 0077#supervisor [implements] — controller and private tmux server are root; panes drop to neutral
 USER root
 RUN mkdir -p /var/lib/neutral-safety && chmod 700 /var/lib/neutral-safety
 ENV NEUTRAL_SAFETY_SOCKET="/run/neutral-safety/client.sock"

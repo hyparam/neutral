@@ -214,6 +214,17 @@ export class SafetyController {
   /** @param {SafetyRequest} request @param {boolean} operator */
   async request(request, operator) {
     if (request.action === 'status') return this.status()
+    // @ref LLP 0077#supervisor [implements] — fixed pane operations, no caller-provided tmux arguments
+    if (request.action === 'sessions') return this.deps.platform.sessions()
+    if (request.action === 'capture' || request.action === 'send') {
+      const run = [...this.runs.values()].find(r => r.session === request.session)
+      if (!run || !(await this.deps.platform.observe(run)).alive) throw new Error('unknown or dead session')
+      if (request.action === 'capture') return this.deps.platform.capture(run)
+      if (this.closing || !this.state || this.state.hold) throw new Error('fleet held: pane input refused')
+      if (!this.deps.config.loops.some(l => l.session === run.session) || run.run !== request.run) throw new Error('unknown or stale loop generation')
+      if (typeof request.message !== 'string' || !request.message.trim() || request.message.length > 16000 || /[\x00-\x08\x0b-\x1f\x7f-\x9f]/.test(request.message)) throw new Error('plain message required (maximum 16000 characters)')
+      return { submitted: await this.deps.platform.send(run, request.message) }
+    }
     if (this.closing) throw new Error('controller stopping')
     if (['init', 'rearm', 'stop'].includes(request.action)) {
       if (!operator) throw new Error('operator socket required')
@@ -266,7 +277,7 @@ export function serveSafety(controller, path, operator) {
     socket.on('data', data => {
       if (handled) return
       input += data.toString()
-      if (input.length > 4096) {
+      if (input.length > 100000) {
         socket.destroy()
         return
       }
@@ -300,6 +311,7 @@ export function serveSafety(controller, path, operator) {
 export function prepareSafetyRuntime(dir = RUNTIME_DIR) {
   rmSync(dir, { recursive: true, force: true })
   mkdirSync(`${dir}/permits`, { recursive: true, mode: 0o755 })
+  mkdirSync(`${dir}/tmux`, { mode: 0o700 })
 }
 
 async function main() {

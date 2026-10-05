@@ -3,6 +3,7 @@ import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { readFileSync, readdirSync, readlinkSync, writeFileSync, existsSync, rmSync } from 'node:fs'
 import { createHash, randomUUID } from 'node:crypto'
+import { injectIntoPane } from './slack-bridge.js'
 import { sessionName, ORCHESTRATOR_MODEL } from '../src/commands/start.js'
 
 const exec = promisify(execFile)
@@ -92,9 +93,23 @@ export class SafetyPlatform {
   }
   /** @param {string} cmd @param {string[]} args @param {number} [timeout] */
   async asNeutral(cmd, args, timeout = 5000) {
-    return (await exec('setpriv', ['--reuid=neutral', '--regid=neutral', '--init-groups', '--', cmd, ...args],
+    return (await exec('/usr/bin/setpriv', ['--reuid=neutral', '--regid=neutral', '--init-groups', '--', cmd, ...args],
       { env: this.env, timeout, maxBuffer: 1024 * 1024 })).stdout.trim()
   }
+  // @ref LLP 0077#supervisor [implements] — private root server; never load worker-owned tmux config
+  /** @param {string[]} args @param {string} [input] */
+  async tmux(args, input) {
+    const child = exec('/usr/bin/tmux', ['-f', '/dev/null', '-S', `${RUNTIME_DIR}/tmux/server.sock`, ...args],
+      { env: { ...this.env, HOME: '/root', SHELL: '/bin/sh', TMUX: undefined, BASH_ENV: undefined, ENV: undefined },
+        timeout: 5000, maxBuffer: 1024 * 1024 })
+    if (input !== undefined) child.child.stdin?.end(input)
+    return (await child).stdout.trimEnd()
+  }
+  async sessions() { return (await this.tmux(['list-sessions', '-F', '#S'])).split('\n').filter(Boolean) }
+  /** @param {ProcessRun} run */
+  async capture(run) { return this.tmux(['capture-pane', '-p', '-t', `=${run.session}:`]) }
+  /** @param {ProcessRun} run @param {string} message */
+  async send(run, message) { return injectIntoPane(message, run.session, (args, input) => this.tmux(args, input)) }
   async prepare() { await this.asNeutral('/opt/neutral/docker/prepare.sh', [], 120_000) }
   async attach() { await this.asNeutral('hyp', ['attach', 'claude'], 3000).catch(() => {}) }
   /** @param {LoopDefinition} def @param {ProcessRun|undefined} old @returns {Promise<ProcessRun>} */
@@ -102,16 +117,19 @@ export class SafetyPlatform {
     const run = randomUUID()
     const permit = `${RUNTIME_DIR}/permits/${run}`
     const shell = `i=0; while [ ! -f ${quote(permit)} ]; do i=$((i+1)); [ "$i" -lt 200 ] || exit 75; sleep 0.05; done; export NEUTRAL_RUN_ID=${quote(run)}; export NEUTRAL_LOOP_SESSION=${quote(def.session)}; exec ${def.command}`
+    // Multiple argv entries make tmux exec setpriv directly, with no root shell.
+    const paneCommand = ['/usr/bin/setpriv', '--reuid=neutral', '--regid=neutral', '--init-groups', '--',
+      '/usr/bin/env', `HOME=${HOME}`, 'USER=neutral', 'LOGNAME=neutral', 'SHELL=/bin/bash', 'TMUX=', '/bin/sh', '-c', shell]
     if (old && (await this.observe(old)).exists) {
-      await this.asNeutral('tmux', ['respawn-pane', '-k', '-t', `=${def.session}:`, '-c', def.cwd, shell])
+      await this.tmux(['respawn-pane', '-k', '-t', `=${def.session}:`, '-c', def.cwd, ...paneCommand])
     } else {
       // No attach-or-create: an unknown live session is not permission to duplicate it.
-      await this.asNeutral('tmux', ['new-session', '-d', '-s', def.session, '-c', def.cwd, shell])
+      await this.tmux(['new-session', '-d', '-s', def.session, '-c', def.cwd, ...paneCommand])
     }
-    await this.asNeutral('tmux', ['set-option', '-w', '-t', `=${def.session}:`, 'remain-on-exit', 'on'])
-    await this.asNeutral('tmux', ['pipe-pane', '-t', `=${def.session}:`])
-    await this.asNeutral('tmux', ['pipe-pane', '-t', `=${def.session}:`, `node /opt/neutral/docker/safety-capture.js ${quote(def.session)}`])
-    const pid = Number(await this.asNeutral('tmux', ['display-message', '-p', '-t', `=${def.session}:`, '#{pane_pid}']))
+    await this.tmux(['set-option', '-w', '-t', `=${def.session}:`, 'remain-on-exit', 'on'])
+    await this.tmux(['pipe-pane', '-t', `=${def.session}:`])
+    await this.tmux(['pipe-pane', '-t', `=${def.session}:`, `/usr/bin/setpriv --reuid=neutral --regid=neutral --init-groups -- /usr/bin/env HOME=/home/neutral node /opt/neutral/docker/safety-capture.js ${quote(def.session)}`])
+    const pid = Number(await this.tmux(['display-message', '-p', '-t', `=${def.session}:`, '#{pane_pid}']))
     const identity = processIdentity(pid)
     if (!identity) throw new Error('new pane process missing')
     writeFileSync(permit, '', { mode: 0o644, flag: 'wx' })
@@ -121,7 +139,7 @@ export class SafetyPlatform {
   /** @param {ProcessRun} run @returns {Promise<ProcessObservation>} */
   async observe(run) {
     let text
-    try { text = await this.asNeutral('tmux', ['display-message', '-p', '-t', `=${run.session}:`, '#{pane_pid} #{pane_dead} #{pane_dead_status}']) }
+    try { text = await this.tmux(['display-message', '-p', '-t', `=${run.session}:`, '#{pane_pid} #{pane_dead} #{pane_dead_status}']) }
     catch { return { exists: false, alive: false, exit: null } }
     const [pid, dead, status] = text.split(' ')
     return { exists: true, alive: dead === '0' && Number(pid) === run.pid && processIdentity(run.pid) === run.identity,

@@ -45,6 +45,35 @@ file, git state). No ledger to drift or fabricate. See
 
 ## Status
 
+### Optional PR backlog audit
+
+Enable the advisory autophagy member in each repo's `.neutral/config.json`,
+merging this field into its existing configuration:
+
+```json
+{ "autophagy": { "prBacklog": true } }
+```
+
+On an eligible idle tick, the loop assesses all open PRs for remaining need,
+already-landed work, supersession, or changed requirements. Evidence and proposed
+human actions go into a held draft report PR; assessed PRs are left unchanged.
+An unmerged replacement is a dependency, and uncertain cases remain open.
+The option defaults off and shares autophagy's admission gate, cooldowns and
+one-open-proposal limit, so busy repos may defer the audit.
+
+`neutral idle --json` exposes the selection, eligibility reasons and complete
+PR inventory. Complete no-op scans use `--backlog-snapshot <fingerprint>` to
+avoid repeats until the observed backlog changes. See
+[LLP 0079](llp/0079-pr-backlog-autophagy.spec.md) for the evidence and delivery rules.
+
+Deploy the updated CLI and reconcile skill before enabling the option in the
+production repos. Verify each repo's `neutral idle --json` includes a
+`pr-backlog` member and a successful `prBacklog` observation; `initiative: null`
+is expected when existing work, admission, cooldowns or an open autophagy PR
+blocks selection.
+
+### Development
+
 Milestone 0: deterministic core + `neutral status`. The reconcilers
 (Designer, Impl-designer, Implementer, Reviewer) land in M1–M4.
 

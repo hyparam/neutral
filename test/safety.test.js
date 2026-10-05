@@ -127,6 +127,12 @@ class FakePlatform extends SafetyPlatform {
   modelAbsent = true
   failLaunch = false
   async prepare() {}
+  async sessions() { return this.launched.filter(r => this.live.get(r.run)).map(r => r.session) }
+  async capture() { return 'pane contents' }
+  /** @type {Array<{run: string, message: string}>} */
+  sent = []
+  /** @param {ProcessRun} run @param {string} message */
+  async send(run, message) { this.sent.push({ run: run.run, message }); return true }
   async attach() {}
   hasHypConfig() { return true }
   async modelProcessesAbsent() { return this.modelAbsent }
@@ -334,4 +340,29 @@ test('fleet configuration rejects naming collisions and preserves model override
   const cfg = fleetConfig({ NEUTRAL_REPOS: 'owner/a', NEUTRAL_MODEL: "model'with-quote" })
   assert(cfg.loops[0].command.includes("'model'\\''with-quote'"))
   assert(cfg.loops[0].command.includes('/loop /neutral-reconcile'))
+})
+
+// @ref LLP 0077#supervisor [tests] — broker cannot execute arbitrary tmux commands or address stale/non-model panes
+test('pane broker scopes input to a live registered generation and preserves literal text', async t => {
+  const f = fixture(t, true)
+  await f.controller.boot()
+  const run = f.controller.runs.get('repo:owner/a')
+  assert(run)
+  const sessions = await f.controller.request({ action: 'sessions' }, false)
+  assert(Array.isArray(sessions) && sessions.includes(run.session))
+  assert.equal(await f.controller.request({ action: 'capture', session: run.session }, false), 'pane contents')
+  const message = 'literal $(touch /tmp/should-not-exist) ; run-shell nope\nsecond line'
+  assert.deepEqual(await f.controller.request({ action: 'send', session: run.session, run: run.run, message }, false), { submitted: true })
+  assert.deepEqual(f.platform.sent, [{ run: run.run, message }])
+  for (const request of [
+    { action: 'send', session: run.session, run: 'old', message: 'hello' },
+    { action: 'send', session: 'hyp-daemon', run: f.controller.runs.get('hyp')?.run, message: 'hello' },
+    { action: 'capture', session: 'a; run-shell bad' },
+    { action: 'send', session: run.session, run: run.run, message: '\x1b[H' },
+    { action: 'send', session: run.session, run: run.run, message: 'x'.repeat(16001) },
+    { action: 'run-shell', message: 'anything' }
+  ]) await assert.rejects(f.controller.request(request, false))
+  await f.controller.trip('test hold')
+  await assert.rejects(f.controller.request({ action: 'send', session: run.session, run: run.run, message }, false), /held/)
+  assert.equal(f.platform.sent.length, 1)
 })

@@ -66,6 +66,9 @@ on the next idle tick — the exact nag the reject cooldown exists to prevent.
 These durations are per-member policy shared across members for now; a
 per-member override is a later extension, not built until a member needs it.
 
+> **Extended-by: LLP 0079.** PR backlog audits use the complete observed PR
+> inventory fingerprint for no-op damping, since PR changes need not move HEAD.
+
 <a id="noop-dampening"></a>**A no-op is damped by target HEAD, as a
 session-scoped scheduling hint.** A no-op leaves no git artifact, so it cannot be
 made a durable ground-truth fact — and must not be forged into one by churning

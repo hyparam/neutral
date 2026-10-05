@@ -123,6 +123,9 @@ per-tick fan-out of LLP 0010.)
    review covered, so an unchanged head is not re-reviewed every tick; a new head
    SHA (from rungs 1–2, or a human's push) re-opens review.
 
+   > Extended-by: LLP 0078 — changed heads default to incremental re-review
+   > against the previous reviewed commit, with evidence-based scope expansion.
+
    > **Extended-by [LLP 0017](0017-triage-at-review-cap.decision.md):** at the
    > `maxReviewRounds` cap neutral no longer goes straight to `neutral:stuck`. It first
    > **triages** the residual findings — if every one is a non-blocking preference they are

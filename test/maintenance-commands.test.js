@@ -70,6 +70,27 @@ test('collectPRs is empty when there are no open PRs (offline-safe)', async () =
   assert.deepEqual(await collectPRs('/r', fakeWorld({ prs: [] })), [])
 })
 
+// @ref LLP 0078#baseline [tests] — own and adopted PR observations deliver the baseline to the worker
+test('collectPRs carries the previous review SHA through the public observation', async () => {
+  const exec = fakeWorld({
+    prs: [
+      { number: 1, headRefName: 'fix/issue-1' },
+      { number: 2, headRefName: 'feature/adopted', labels: [{ name: 'neutral:adopt' }] }
+    ],
+    views: Object.fromEntries([1, 2].map(number => [number, {
+      number, headRefName: number === 1 ? 'fix/issue-1' : 'feature/adopted',
+      baseRefName: 'main', isDraft: true, mergeable: 'MERGEABLE', mergeStateStatus: 'CLEAN',
+      statusCheckRollup: [], headRefOid: 'bbbbbbb', body: '',
+      labels: number === 1 ? [] : [{ name: 'neutral:adopt' }],
+      comments: [{ body: '<!-- neutral-review: aaaaaaa findings -->', author: { login: 'phil' }, createdAt: '1' }]
+    }]))
+  })
+  const got = await collectPRs('/r', exec)
+  assert.deepEqual(got.map(p => [p.number, p.action, p.previousReviewSha]), [
+    [1, 'review', 'aaaaaaa'], [2, 'review', 'aaaaaaa']
+  ])
+})
+
 test('collectPRs adopts a pushable neutral:adopt PR as its OWN — foreign: false (LLP 0025/0058)', async () => {
   const exec = fakeWorld({
     prs: [

@@ -16,20 +16,21 @@ import { run } from '../git.js'
 export const ORCHESTRATOR_SESSION = 'neutral'
 // The orchestrator runs on the WORKER tier (LLP 0020): the tick is deliberately
 // mechanical — the CLI decides every rung, fan-in is git commands — so it does not
-// need the judgment tier, and it is the single largest spend. Pinned explicitly so a
+// need the judgment tier, and it is the single largest spend. Selected explicitly so a
 // respawn (LLP 0013) or a machine with a different session default can't silently
-// revert it. The `[1m]` suffix is Claude Code's 1M-context variant of Opus 5 —
-// REQUIRED here (not the plain 200K `opus`): the loop is long-lived, and the autophagy
+// revert it. The `opus` alias follows Claude Code's current Opus version; `[1m]`
+// explicitly requests its 1M context window. The loop is long-lived, and the autophagy
 // threshold T defaults to 500K tokens (LLP 0013), which only a 1M window can reach
 // before recycling.
-// @ref LLP 0020#decision [implements] — orchestrator = worker tier, pinned at launch
-export const ORCHESTRATOR_MODEL = 'claude-opus-5[1m]'
+// @ref LLP 0020#decision [implements] — orchestrator = worker tier, explicit alias at launch
+export const ORCHESTRATOR_MODEL = 'opus[1m]'
 // The loop, as one shell-command string tmux runs via `sh -c`. The model token is
 // single-quoted so `sh` doesn't glob the `[1m]` brackets. Permission bypass is part
 // of the loop's contract (the skill declares it autonomous — nobody is at the
 // terminal to answer): without it a fresh session wedges on the skill-consent
 // dialog before its first tick, observed in production after an autophagy respawn.
-export const LOOP_SHELL_COMMAND = `claude --model '${ORCHESTRATOR_MODEL}' --dangerously-skip-permissions '/loop /neutral-reconcile'`
+// @ref LLP 0020#decision [implements] — Agent accepts fable, so bind that alias in its inherited environment
+export const LOOP_SHELL_COMMAND = `ANTHROPIC_DEFAULT_FABLE_MODEL=claude-fable-5-1 claude --model '${ORCHESTRATOR_MODEL}' --dangerously-skip-permissions '/loop /neutral-reconcile'`
 
 /**
  * The orchestrator's tmux session name for a repo: `neutral-<repo-folder>` (e.g.
@@ -86,7 +87,7 @@ export async function startCommand(repo, _args, deps = {}) {
     process.stderr.write(
       'neutral start: tmux not found — context autophagy needs a tmux pane (LLP 0013).\n' +
       'Install tmux, or run the loop without self-respawn (falls back to summarization):\n' +
-      `  claude --dangerously-skip-permissions "/loop /neutral-reconcile"\n`
+      `  ${LOOP_SHELL_COMMAND}\n`
     )
     return 1
   }

@@ -64,6 +64,24 @@ without capture; the guard itself is mandatory either way.
 
 ## Repairs, stops, and holds
 
+### Auxiliary model requests
+
+The image defaults `CLAUDE_CODE_ENABLE_PROMPT_SUGGESTION`,
+`CLAUDE_CODE_FORK_SUBAGENT`, and `CLAUDE_CODE_COORDINATOR_MODE` to `false`.
+These disable suggested next user messages and automatic agent progress-label
+requests for the unattended interactive loops. With Claude Code 2.1.252,
+progress summaries are coupled to fork/coordinator mode: this also disables
+the special built-in fork subagent that inherits the parent conversation.
+Normal background and review subagents remain available.
+
+Keep the same values in deployment environment overrides. Recheck these
+controls when upgrading Claude Code; their coupling is version-specific.
+Environment changes take effect in newly launched processes, so recreate the
+container through the planned deployment path below. Neither these settings
+nor deployment clear an existing account quota limit or fleet safety hold.
+
+### Recovery operations
+
 A watchdog or operator repairs a registered loop through the same gate:
 
 ```sh
@@ -143,3 +161,31 @@ to a printed temporary directory. No production deployment is touched.
 The temporary external guard should remain until deployment passes these
 checks with its real restart policy and mounted safety volume. Implementing
 this code does not itself install the guard on the running fleet.
+
+## Worker process boundary (LLP 0077)
+
+The shared tmux server now runs as root, loading no user tmux configuration,
+with its socket at `/run/neutral-safety/tmux/server.sock` in a root-only
+directory. Every pane and capture helper drops to neutral. Workers cannot
+signal the server or access its socket. They use these fixed operations:
+
+```sh
+neutral safety sessions
+neutral safety capture --session neutral-hypaware
+neutral safety send --session neutral-hypaware --message-file /path/to/message.txt
+```
+
+Send reads stdin if no message file is supplied, bounds plain text to 16000
+characters, rejects control characters, and returns `submitted`. It checks the
+observed generation and refuses held fleets and service-pane input. The bridge
+and watchdog use the same submission path. Root operators can inspect directly:
+
+```sh
+docker exec --user root neutral-loop tmux -S /run/neutral-safety/tmux/server.sock list-sessions
+```
+
+A code upgrade requires image rebuild and recreation, preserving every volume,
+environment override, pinned dependency version, and the current hold. Validate
+with the fake-service smoke first. Deployment and an explicit rearm are separate
+operator actions. Workers still share one UID with each other; this change
+protects the supervisor rather than providing per-worker isolation.

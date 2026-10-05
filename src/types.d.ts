@@ -115,11 +115,31 @@ export interface NeutralConfig {
   autophagy: {
     /** The code-cleanup idle initiative (LLP 0036). Default on; the held-PR boundary is the safety. */
     codeCleanup: boolean
+    /** PR relevance audit (LLP 0079). Opt-in, recommendations only. */
+    prBacklog: boolean
     /** Hours a member backs off after an accepted (merged) cleanup PR (LLP 0047). 0 disables. */
     cooldownAfterMergeHours: number
     /** Hours a member backs off after a rejected (closed-unmerged) cleanup PR; defaults longer (LLP 0047). 0 disables. */
     cooldownAfterRejectHours: number
   }
+}
+
+/** Complete repository PR inventory for the advisory autophagy scan (LLP 0079). */
+export interface BacklogPR {
+  number: number
+  url: string
+  title: string
+  head: string
+  headSha: string
+  base: string
+  baseSha: string
+  updatedAt: string
+}
+
+export interface PRBacklogObservation {
+  prs: BacklogPR[]
+  fingerprint: string | null
+  error: string | null
 }
 
 export type ShipRiskLevel = 'low' | 'medium' | 'high' | 'unknown'
@@ -245,6 +265,8 @@ export interface PrObservation {
 export interface RungDecision {
   /** Triage may attempt current-PR fixes only while a verification round remains (LLP 0075). */
   canFix?: boolean
+  /** Prior review marker for an own/adopted PR; verify the commit and review evidence before using it as a delta baseline (LLP 0078). */
+  previousReviewSha?: string
   /** mergeable | green | reviewed | ship-risk | terminal. */
   rung: string
   /**

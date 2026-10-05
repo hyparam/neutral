@@ -20,6 +20,8 @@ expensive review stages. Phil authorized implementing these three fixes.
 <a id="waiting"></a>
 ## Waiting
 
+Extended-by: LLP 0077 (owned waiting and protected tmux supervision).
+
 CLI review workers run through a bounded process runner that buffers a tail of
 output and emits one result at completion. Timeout kills the owned process
 group and returns failure, never a clean review. Full reports stay on disk.
@@ -35,6 +37,9 @@ claim that arbitrary agent tool use cannot waste tokens.
 
 <a id="disposition"></a>
 ## Disposition before another review
+
+Extended-by: LLP 0078 — changed heads reuse the previous review and inspect
+the delta, prior fixes, and affected interactions by default.
 
 After mergeability and CI, the latest `findings` review at an unchanged head
 routes to `triage` immediately, without marking it approved. New heads still

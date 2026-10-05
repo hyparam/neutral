@@ -61,6 +61,14 @@ try {
   assert.equal(exec('id', '-u'), '0')
   assert.equal(exec('node', '-e', "console.log(require('fs').readFileSync('/proc/1/comm','utf8').trim())"), 'tini')
   mark('operator-rearm-launches-after-stable-gateway')
+  const paneRun = status().loops[0]
+  const client = (...args) => JSON.parse(docker('exec', '--user', 'neutral', run, 'neutral', 'safety', ...args))
+  assert(client('sessions').includes(paneRun.session))
+  assert.match(client('capture', '--session', paneRun.session), /fake model started/)
+  docker('exec', '--user', 'neutral', run, 'sh', '-c', "printf 'hello worker' > /work/message.txt")
+  assert.equal(client('send', '--session', paneRun.session, '--message-file', '/work/message.txt').submitted, true)
+  assert.throws(() => client('capture', '--session', 'unknown'))
+  mark('worker-pane-broker-inspection-and-input')
   // Exiting grandchildren are adopted by PID 1, outside Node's child handles.
   const orphanPids = JSON.parse(exec('node', '-e', `
     const { spawnSync } = require('node:child_process')
@@ -126,7 +134,7 @@ try {
 } finally {
   try { writeFileSync(join(output, 'container.log'), docker('logs', '--tail', '100', run)) } catch {}
   try { writeFileSync(join(output, 'last-status.json'), JSON.stringify(status(), null, 2)) } catch {}
-  try { writeFileSync(join(output, 'gateway-pane.txt'), docker('exec', '--user', 'neutral', run, 'tmux', 'capture-pane', '-p', '-t', '=hyp-daemon:')) } catch {}
+  try { writeFileSync(join(output, 'gateway-pane.txt'), exec('neutral', 'safety', 'capture', '--session', 'hyp-daemon')) } catch {}
   try { docker('rm', '-f', run) } catch {}
   // These two names were created above for this run only, never user data volumes.
   for (const volume of [safety, work]) {

@@ -52,6 +52,9 @@ round**: a worker cannot satisfy the rung without leaving the evidence, and
 because the comment carries a `<!-- neutral-… -->` marker it can never read as a
 human reply (LLP 0027).
 
+> Extended-by: LLP 0078 — the same comment records incremental scope, its
+> verified baseline, prior finding outcomes, and any justified expansion.
+
 **Legacy:** existing body markers are still read (as clean rounds, ordered before
 comment records), so heads already reviewed do not re-open. New reviews write
 comments only; the body is no longer edited for review state. The `neutral-triage`
