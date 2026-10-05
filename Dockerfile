@@ -92,6 +92,14 @@ ENV NEUTRAL_REPOS=$NEUTRAL_REPOS
 ENV NEUTRAL_MODEL="claude-opus-5[1m]"
 ENV NEUTRAL_CLAUDE_ARGS="--dangerously-skip-permissions"
 
+# Unattended loops do not need suggested user prompts or periodic progress-label
+# model calls. In Claude Code 2.1.252, agent summaries are coupled to fork and
+# coordinator modes; ordinary background/review subagents remain available.
+# Keep these as image defaults so a rebuild does not re-enable auxiliary usage.
+ENV CLAUDE_CODE_ENABLE_PROMPT_SUGGESTION="false"
+ENV CLAUDE_CODE_FORK_SUBAGENT="false"
+ENV CLAUDE_CODE_COORDINATOR_MODE="false"
+
 # Watchdog: a third LLM loop that hourly heals wedged reconcile loops
 # (LLP 0034). Set NEUTRAL_WATCHDOG=0 to disable the LLM watchdog.
 # The deterministic safety controller still bounds all registered loop recovery. NEUTRAL_WATCHDOG_MODEL overrides the
