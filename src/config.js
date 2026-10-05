@@ -128,6 +128,8 @@ export const DEFAULT_CONFIG = {
   // @ref LLP 0036#eligibility [implements] — the per-repo off-switch
   autophagy: {
     codeCleanup: true,
+    // @ref LLP 0079#configuration [implements] — opt-in PR relevance audit
+    prBacklog: false,
     // Idle-initiative cooldowns, wall-clock hours (LLP 0047). A member backs off this
     // long after its cleanup PR is disposed — longer after a rejection than a merge.
     // @ref LLP 0047#cooldown [implements]
@@ -178,6 +180,9 @@ function merge(base, over) {
       codeCleanup: typeof (o.autophagy && o.autophagy.codeCleanup) === 'boolean'
         ? o.autophagy.codeCleanup
         : base.autophagy.codeCleanup,
+      prBacklog: typeof (o.autophagy && o.autophagy.prBacklog) === 'boolean'
+        ? o.autophagy.prBacklog
+        : base.autophagy.prBacklog,
       // 0 is a valid value (disables the arm), so the gate is `>= 0`, not `> 0`.
       cooldownAfterMergeHours: hoursOr(o.autophagy && o.autophagy.cooldownAfterMergeHours, base.autophagy.cooldownAfterMergeHours),
       cooldownAfterRejectHours: hoursOr(o.autophagy && o.autophagy.cooldownAfterRejectHours, base.autophagy.cooldownAfterRejectHours)

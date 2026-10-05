@@ -9,6 +9,9 @@
 
 ## Context
 
+> **Extended-by: LLP 0079.** Adds an optional PR backlog relevance audit whose
+> output is an advisory held draft PR.
+
 When a tick observes **no actionable gap** in either reconciler family (LLP 0008)
 — empty backlog, every PR action ∈ `{wait, held}`, no `needs-fix` issue — the repo
 has reached **neutral** and the orchestrator does nothing but burn the tick. Two

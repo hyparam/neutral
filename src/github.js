@@ -9,8 +9,38 @@
 import { run } from './git.js'
 import { ADOPT_LABEL } from './config.js'
 import { AUTOPHAGY_PREFIX } from './autophagy.js'
+import { createHash } from 'node:crypto'
 
-/** @import { PrObservation } from './types.d.ts' */
+/** @import { PrObservation, PRBacklogObservation, BacklogPR } from './types.d.ts' */
+
+/**
+ * All open PRs, including foreign and draft heads, without a silent list cap.
+ * Unknown stays unknown: an API/parse failure cannot authorize a scan or no-op.
+ * @param {string} repo
+ * @param {typeof run} [exec]
+ * @returns {Promise<PRBacklogObservation>}
+ * @ref LLP 0079#observation [implements] — paginated inventory and snapshot damping
+ */
+export async function observePRBacklog(repo, exec = run) {
+  try {
+    const pages = JSON.parse(await exec('gh', ['api', '--paginate', '--slurp',
+      'repos/{owner}/{repo}/pulls?state=open&per_page=100'], repo))
+    if (!Array.isArray(pages) || !pages.length || !pages.every(Array.isArray)) throw new Error('invalid pages')
+    /** @type {BacklogPR[]} */
+    const prs = pages.flat().map(p => {
+      if (!p || !Number.isInteger(p.number) || p.number <= 0 || p.state !== 'open' ||
+          ![p.html_url, p.title, p.head?.ref, p.head?.sha, p.base?.ref, p.base?.sha, p.updated_at]
+            .every(v => typeof v === 'string' && v.length > 0)) throw new Error('invalid PR')
+      return { number: p.number, url: p.html_url, title: p.title, head: p.head.ref,
+        headSha: p.head.sha, base: p.base.ref, baseSha: p.base.sha, updatedAt: p.updated_at }
+    }).sort((a, b) => a.number - b.number)
+    if (new Set(prs.map(p => p.number)).size !== prs.length) throw new Error('inventory changed during pagination')
+    const fingerprint = createHash('sha256').update(JSON.stringify(prs)).digest('hex')
+    return { prs, fingerprint, error: null }
+  } catch {
+    return { prs: [], fingerprint: null, error: 'PR backlog observation unavailable — retry on a later tick' }
+  }
+}
 
 // The fields reconcilePR's rungs need: mergeability, the check rollup, the head SHA
 // (every downstream fact is keyed to it), the body (carries the triage/verdict markers

@@ -119,6 +119,10 @@ work, the tick verifies it.
      least-recently-run one past its cooldown and not damped, LLP 0047) — run that
      member's initiative (code cleanup, below), then **return** and let the loop
      schedule the next tick.
+     For `"pr-backlog"`, read and follow
+     [PR backlog autophagy](references/pr-backlog-autophagy.md) (LLP 0079).
+     Its no-op hint is `--backlog-snapshot <fingerprint>` on subsequent idle
+     calls, separate from the target-HEAD-based `--damped` members.
    - `null` — **return**; the loop schedules the next tick (`ScheduleWakeup`). This
      is a legitimate, common outcome: every member may be off, cooling down since a
      recent PR disposition, or no-op damped. A deliberately idle tick is correct, not
@@ -217,10 +221,10 @@ tick's log lines (R2 — nothing may follow this destructive act):
   `tick: family=autophagy action=recycle detail=context=<N> threshold=<T>`, then
   **respawn the pane** — the tick's last act:
   ```sh
-  tmux respawn-pane -k "claude --model 'claude-opus-5[1m]' --dangerously-skip-permissions '/loop /neutral-reconcile'"
+  tmux respawn-pane -k "ANTHROPIC_DEFAULT_FABLE_MODEL=claude-fable-5-1 claude --model 'opus[1m]' --dangerously-skip-permissions '/loop /neutral-reconcile'"
   ```
-  **Pin the model** to the 1M-context Opus 5 (the worker tier, matching `neutral
-  start` — LLP 0020): an unpinned respawn silently reverts the fresh orchestrator to
+  **Select `opus[1m]`** for the 1M-context worker tier (matching `neutral
+  start` — LLP 0020): a respawn without `--model` silently reverts the fresh orchestrator to
   the machine's session default, which may be a different tier or a 200K window too
   small for the autophagy threshold T (LLP 0013). Single-quote the `[1m]` token so `sh`
   doesn't glob the brackets. **Keep `--dangerously-skip-permissions`**: the loop is
@@ -301,7 +305,13 @@ model's failure just re-opens the gap — so cheap models run wherever a verifie
 the result, and the strongest is reserved for judgement no machine re-checks. When you
 dispatch a worker below, pass the tier's model as the sub-agent's `model`:
 
-- **Judgment tier — `claude-fable-5-1`, at `high` effort.** Output no verifier re-derives, where
+The Agent tool accepts family aliases. Launch with
+`ANTHROPIC_DEFAULT_FABLE_MODEL=claude-fable-5-1` so `model: "fable"` selects
+Fable 5.1; `neutral start` and the Docker image set this binding. The Workflow
+keeps its explicit model ID. After a CLI or model-binding update, recycle the
+running loops and verify the response model in recorded usage.
+
+- **Judgment tier — `fable`, at `high` effort.** Output no verifier re-derives, where
   an error propagates: the **Designer**, the **Impl-designer**, and the **triage** rung.
   Run Fable 5.1 at **`high`**, not Claude Code's `xhigh` default — Fable 5.1 at `high` still
   exceeds prior models at their ceiling, so it's a low-risk cost lever on the priciest
@@ -309,14 +319,18 @@ dispatch a worker below, pass the tier's model as the sub-agent's `model`:
   tool has no per-call `effort` override**, so the Designer/Impl-designer/triage inherit
   the **session** effort — run the orchestrator loop at `high` if you want them capped
   there too.
-- **Worker tier — `opus` (Opus 5).** Bounded work behind a hard gate: **conflict
+- **Worker tier — `opus` (Opus).** Bounded work behind a hard gate: **conflict
   resolution**, **issue-fix**, the Claude half of **review**, and the **orchestrator
-  itself** (pinned at launch — LLP 0020; the tick is mechanical, the CLI decides every
+  itself** (selected explicitly at launch — LLP 0020; the tick is mechanical, the CLI decides every
   rung).
 - **Mechanical tier — `sonnet`, or `haiku` for pure CLI relay.** Fully verifier-gated
   execution: **task implementation** and its **serial merger**, **fix-ci**,
   **review-fix** agents, and **derive-ready** (haiku). The implement Workflow already
   sets these per `agent()` call.
+
+The `opus` and `sonnet` aliases follow the versions provided by the installed
+Claude Code and provider. Keep Claude Code current; `ANTHROPIC_DEFAULT_OPUS_MODEL`
+and `ANTHROPIC_DEFAULT_SONNET_MODEL` can override these aliases.
 
 **Retry escalation (LLP 0021/0022).** A task's *first* attempt starts at the tier its
 planner-rated `complexity` seeds (1–3 mechanical, 4 worker, 5 judgment; absent ⇒
@@ -327,7 +341,7 @@ escalation changes *which model retries*, never *what counts as done*. The imple
 Workflow's wave loop owns this ladder end-to-end; the other rungs below take a single
 tier per their heading.
 
-## Fan-out worker: Designer (pipeline)  — judgment tier (`claude-fable-5-1`)
+## Fan-out worker: Designer (pipeline)  — judgment tier (`fable`)
 
 Goal: every live request is `@ref`'d by a `design` LLP. Plan the **whole** backlog
 up front, then mint only the groups covered by this tick's reserved admission slots
@@ -355,7 +369,7 @@ up front, then mint only the groups covered by this tick's reserved admission sl
      the remote branch); then `cd <repo> && git worktree remove --force "$WT"`.
 4. **Verify:** `neutral backlog` is now **empty**. Never commit a design to the target branch.
 
-## Fan-out worker: Impl-designer (pipeline)  — judgment tier (`claude-fable-5-1`)
+## Fan-out worker: Impl-designer (pipeline)  — judgment tier (`fable`)
 
 Goal: every implementable `design` LLP has a `plan` LLP on its `integration/<slug>`
 branch. A design is implementable two ways: **neutral-minted** (already on
@@ -387,7 +401,7 @@ content edit — immutability holds) so the merged change set reads as shipped (
    Encode real code dependencies in `deps`. **Rate each task's `complexity` 1–5**
    (LLP 0022) — your judgement, made here with the whole design in view, seeds the
    first implementation attempt's model tier: **1–3** a mechanical task (Sonnet),
-   **4** needs the worker tier (Opus 5), **5** needs judgement (Fable 5.1). Rate for
+   **4** needs the worker tier (Opus), **5** needs judgement (Fable 5.1). Rate for
    the *hardest* part of the task; be honest, not generous — the rating only seeds
    the entry rung and a verified failure still escalates (LLP 0021), so under-rating
    costs one climbing attempt, over-rating overpays. Omit `complexity` only when you

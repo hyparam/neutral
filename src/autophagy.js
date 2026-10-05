@@ -19,9 +19,11 @@ export const AUTOPHAGY_PREFIX = 'autophagy/'
 // branch namespace `autophagy/<id>-*` and a config switch under `autophagy`. Adding a
 // member is one row here plus its worker; the selection machinery is member-agnostic.
 // @ref LLP 0047#rotation [implements] — the member registry the rotation ranks
-/** @type {Array<{ id: string, configKey: 'codeCleanup' }>} */
+/** @type {Array<{ id: string, configKey: 'codeCleanup' | 'prBacklog' }>} */
 export const AUTOPHAGY_MEMBERS = [
-  { id: 'cleanup', configKey: 'codeCleanup' } // LLP 0036 — code cleanup
+  { id: 'cleanup', configKey: 'codeCleanup' }, // LLP 0036 — code cleanup
+  // @ref LLP 0079#configuration [implements] — same rotation and held-PR boundary
+  { id: 'pr-backlog', configKey: 'prBacklog' }
 ]
 
 const HOUR_MS = 3600_000
@@ -51,7 +53,7 @@ function lastDisposition(id, disposed) {
  * Classify one member's eligibility from ground truth + the clock (LLP 0047): off in
  * config, inside its disposition cooldown, or no-op damped ⇒ ineligible. A member that
  * has never run is eligible (subject to the global gate) — a fresh member gets its turn.
- * @param {{ id: string, configKey: 'codeCleanup' }} member
+ * @param {{ id: string, configKey: 'codeCleanup' | 'prBacklog' }} member
  * @param {NeutralConfig} config
  * @param {Array<{ headRefName: string, mergedAt: string|null, closedAt: string|null }>} disposed
  * @param {number} now
@@ -76,7 +78,8 @@ function memberState(member, config, disposed, now, damped) {
   }
   // @ref LLP 0047#noop-dampening [constrained-by] — the orchestrator's session hint
   if (damped.has(id)) {
-    return { id, eligible: false, cooldownRemaining: 0, lastDisposition: at, reason: 'no-op damped — target HEAD unchanged since last empty scan' }
+    const input = id === 'pr-backlog' ? 'PR backlog snapshot' : 'target HEAD'
+    return { id, eligible: false, cooldownRemaining: 0, lastDisposition: at, reason: `no-op damped — ${input} unchanged since last empty scan` }
   }
   return { id, eligible: true, cooldownRemaining: 0, lastDisposition: at, reason: last ? 'past cooldown' : 'never run' }
 }
@@ -92,10 +95,11 @@ function memberState(member, config, disposed, now, damped) {
  * @param {Array<{ headRefName: string, mergedAt: string|null, closedAt: string|null }>} obs.disposed  closed autophagy PRs
  * @param {NeutralConfig} obs.config
  * @param {number} obs.now  epoch ms
- * @param {Iterable<string>} [obs.damped]  member ids no-op damped at the current HEAD (orchestrator hint)
+ * @param {Iterable<string>} [obs.damped]  member ids no-op damped at the current observation (orchestrator hint)
+ * @param {number|null} [obs.backlogCount]  null/absent means the full PR backlog is unobservable
  * @returns {InitiativeSelection}
  */
-export function selectInitiative({ openPRs, disposed, config, now, damped = [] }) {
+export function selectInitiative({ openPRs, disposed, config, now, damped = [], backlogCount = null }) {
   // @ref LLP 0047#gate-global [implements] — one open autophagy PR, any member, blocks all
   const openAutophagy = openPRs.find(p => p.head.startsWith(AUTOPHAGY_PREFIX))
   if (openAutophagy) {
@@ -107,7 +111,14 @@ export function selectInitiative({ openPRs, disposed, config, now, damped = [] }
     return { initiative: null, members }
   }
   const dampedSet = new Set(damped)
-  const members = AUTOPHAGY_MEMBERS.map(m => memberState(m, config, disposed, now, dampedSet))
+  const members = AUTOPHAGY_MEMBERS.map(m => {
+    const state = memberState(m, config, disposed, now, dampedSet)
+    // @ref LLP 0079#observation [implements] — empty and unknown are different gates
+    if (m.id === 'pr-backlog' && state.eligible && !(backlogCount !== null && backlogCount > 0)) {
+      return { ...state, eligible: false, reason: backlogCount === 0 ? 'PR backlog is empty' : 'PR backlog observation unavailable' }
+    }
+    return state
+  })
   return { initiative: leastRecentlyRun(members), members }
 }
 

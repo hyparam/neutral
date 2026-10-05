@@ -89,7 +89,9 @@ ARG NEUTRAL_REPOS=""
 ENV NEUTRAL_REPOS=$NEUTRAL_REPOS
 
 # Overridable knobs (defaults mirror src/commands/start.js).
-ENV NEUTRAL_MODEL="claude-opus-5[1m]"
+# Agent model overrides accept aliases; bind the judgment tier for every loop.
+ENV ANTHROPIC_DEFAULT_FABLE_MODEL="claude-fable-5-1"
+ENV NEUTRAL_MODEL="opus[1m]"
 ENV NEUTRAL_CLAUDE_ARGS="--dangerously-skip-permissions"
 
 # Unattended loops do not need suggested user prompts or periodic progress-label

@@ -43,7 +43,7 @@ usage:
   neutral enqueue <pr> <sha>     add an approved exact head to GitHub's merge queue
   neutral pr-stats <base> [head] production-code diff lines, excluding tests + LLPs
   neutral issues [--json]        open neutral:fix issues with their fix-attempt state
-  neutral idle [--json]          is the tick idle, and should it recycle context (LLP 0013)
+  neutral idle [--json] [--damped ids] [--backlog-snapshot hash]  select one idle initiative
   neutral llp <number> [--json]  inspect one LLP: metadata, role, coverage
   neutral help                   this message
 `

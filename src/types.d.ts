@@ -124,6 +124,24 @@ export interface NeutralConfig {
   }
 }
 
+/** Complete repository PR inventory for the advisory autophagy scan (LLP 0079). */
+export interface BacklogPR {
+  number: number
+  url: string
+  title: string
+  head: string
+  headSha: string
+  base: string
+  baseSha: string
+  updatedAt: string
+}
+
+export interface PRBacklogObservation {
+  prs: BacklogPR[]
+  fingerprint: string | null
+  error: string | null
+}
+
 export type ShipRiskLevel = 'low' | 'medium' | 'high' | 'unknown'
 export type ShipRiskThreshold = 'none' | 'low' | 'medium' | 'high'
 
