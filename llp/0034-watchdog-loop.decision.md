@@ -70,6 +70,9 @@ depend on host config that a `docker run` on a new box would silently lack.
 > Extended-by: LLP 0072 — [Restart safeguard](0072-restart-burn-safeguard.rfc.md#controller)
 > adds a persistent safety hold that bounds supervisor and watchdog recovery.
 
+> Extended-by: LLP 0082 — [Dialog-proof cleanup](0082-dialog-proof-cleanup.spec.md#dialog-wedge)
+> treats a visible confirmation dialog as a wedge even when the transcript is fresh.
+
 - While the watchdog is enabled (`NEUTRAL_WATCHDOG=1`, the default) the
   container no longer exits when all repo loops die — the watchdog resurrects
   them. Teardown is `docker stop`. `NEUTRAL_WATCHDOG=0` restores the old

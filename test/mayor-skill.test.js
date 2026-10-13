@@ -29,3 +29,15 @@ test('mayor accounts for available, overflow, zero-limit, and frozen admission s
   assert.match(mayorSkill, /zero limit[\s\S]*`0\/0 occupied — paused`/)
   assert.match(mayorSkill, /Do not put `admission\.frozen` in Work slots/)
 })
+
+// @ref LLP 0082#dialog-wedge [tests] — a visible dialog is reported and healed even when the transcript is fresh
+test('watchdog and mayor treat a visible confirmation dialog as a wedge', () => {
+  const watchdogSkill = readFileSync(join(root, '.claude/skills/neutral-watchdog/SKILL.md'), 'utf8')
+  assert.match(watchdogSkill, /Dialog on screen — overrides freshness[\s\S]*\*\*every\*\* session on every\s+tick/)
+  assert.match(watchdogSkill, /log `state=dialog`[\s\S]*even when the\s+transcript is fresh/)
+  assert.match(watchdogSkill, /Never\s+type into the pane/)
+  assert.match(watchdogSkill, /Second consecutive tick\*\* showing the same dialog: respawn/)
+  assert.match(watchdogSkill, /state=<healthy\|busy\|dialog\|/)
+  assert.match(mayorSkill, /\*\*Dialog on screen\*\* \(LLP 0082\)[\s\S]*Key: `\[neutral session=<name> dialog\]`/)
+  assert.match(mayorSkill, /`🔴 dialog`/)
+})

@@ -67,7 +67,8 @@ curl -s -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
 
 ### 1. Push what waits on a human — plus the issue queue
 
-Five events push (LLP 0041 §push-pull, extended by LLP 0043 §issue-events);
+Six events push (LLP 0041 §push-pull, extended by LLP 0043 §issue-events and
+LLP 0082 §dialog-wedge);
 routine health stays in logs, available by asking. **Event cards, their
 thread detail replies, and in-place card updates are your ONLY unprompted
 Slack activity.** Never post tick summaries, status updates as channel
@@ -93,6 +94,14 @@ ground truth across every repo clone (`/work/*/` with a `.git`) and session:
   newest event **timestamp inside** `~/.claude/projects/-work-<name>/*.jsonl`
   (never file mtime) older than **2 hours**, with no active work in the pane.
   Key: `[neutral session=<name> unhealed@<lastEventISO>]`
+- **Dialog on screen** (LLP 0082): for each live `neutral-*` session,
+  `neutral safety capture --session <session>`; a pane showing "Do you want to
+  proceed?" or any Yes/No menu means a worker or loop is wedged on a question
+  nobody in the fleet can answer, however fresh its transcript. The watchdog
+  replaces the session on its second consecutive tick, so the human has about
+  one cadence to answer it in tmux. Never answer it yourself. Put the command
+  text from the capture in the thread detail.
+  Key: `[neutral session=<name> dialog]`
 - **Fix intake** (LLP 0043): each open `neutral:fix` issue in that repo's
   `neutral issues --json`, announced once on first observation — queue
   awareness, since the label may not be the notified human's own act.
@@ -139,7 +148,7 @@ scanning, the thread is for depth:
 - `section` — status line + one sentence: `<emoji> *<status>* — <one
   sentence saying what the PR/issue is> (<link|GitHub>)`. Status vocabulary:
   `🟢 approved` (ready-to-merge) · `🔴 stuck` · `🟠 fix-queued` ·
-  `🔴 issue-stuck` · `🔴 unhealed`.
+  `🔴 issue-stuck` · `🔴 unhealed` · `🔴 dialog`.
 - optional `section` — **⚠️ warning, only when merging is complicated**:
   the same facts as the PR body's merge-notes block (LLP 0050 — unmerged
   `Depends-on:` predecessors, e.g. `⚠️ merge hyparam#41 first`), re-derived

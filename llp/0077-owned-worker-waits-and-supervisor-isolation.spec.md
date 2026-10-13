@@ -41,6 +41,9 @@ background Bash sleep commands, including polling loops. It continues to
 force blocking TaskOutput when present. Hook matching is behavioral guidance,
 not a shell sandbox; alternate spellings and programs may evade it.
 
+> Extended-by: LLP 0082 — [Dialog-proof cleanup](0082-dialog-proof-cleanup.spec.md#cleanup)
+> denies `rm` on a shell-variable path, which raises an unanswerable harness dialog.
+
 <a id="supervisor"></a>
 ## Controller-owned tmux
 

@@ -123,3 +123,25 @@ test('worker hook blocks cross-task cleanup and background sleep accumulation', 
     { tool_name: 'Monitor', tool_input: { command: 'until curl -fsS localhost:8080; do sleep 2; done' } }
   ]) assert.equal(waitHook(input), null)
 })
+
+// @ref LLP 0082#cleanup [tests] — replay the incident cleanups; literal paths and git worktree removal pass
+test('worker hook denies rm on a shell-variable path before the harness can prompt', () => {
+  for (const command of [
+    'rm -f $S/*.log', 'rm -f $HYP_CHECK_LOG/*', 'rm -f $S/$D/node_modules',
+    'rm -f "$PWD/$S/home/.claude/settings.json"', 'rm -rf ${WT}', "rm -rf '$WT'",
+    'rm -f "$S/$w/node_modules"; git -C /work/hypaware-server worktree remove --force "$S/$w"',
+    'cd /work/repo && /bin/rm -rf "$WT"', 'rm -f stale.log "$S/other.log"', 'rm -f "$(ls -t *.log | tail -n +2)"'
+  ]) {
+    const result = waitHook({ tool_name: 'Bash', tool_input: { command } })
+    assert.equal(result?.hookSpecificOutput.permissionDecision, 'deny', command)
+    assert.match(result?.hookSpecificOutput.permissionDecisionReason ?? '', /git -C <repo> worktree remove --force/)
+  }
+  for (const command of [
+    'rm -rf /tmp/tmp.abc123 /tmp/tmp.def456', 'rm -f /tmp/claude-501/scratch/proof.js',
+    'git -C /work/repo worktree remove --force "$WT"; git -C /work/repo worktree prune',
+    'WT=$(mktemp -d) && git worktree add --detach "$WT" origin/main && cd "$WT"',
+    'git rm -q "$FILE"', 'npm rm $PKG', 'echo "$S" | grep -c rm'
+  ]) {
+    assert.equal(waitHook({ tool_name: 'Bash', tool_input: { command } }), null, command)
+  }
+})

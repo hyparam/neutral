@@ -20,7 +20,10 @@ question in the marker-signed **stuck report** (LLP 0026); the human answers by
 replying on the thread, and the unstick predicate (LLP 0027) feeds the reply back in
 on a later tick. This applies to every worker you dispatch too — pass it down: a
 worker that needs a human decision returns "stick it with this question", it does
-not ask.
+not ask. The same goes for the harness's own dialogs (LLP 0082): never run `rm` on
+a path built from a shell variable — the harness raises a "Do you want to
+proceed?" dialog that nobody can answer, and the worker wedges for days. Pass
+this down to every worker brief, with the cleanup form below.
 
 The goal is **neutral state** (LLP 0008): every gap neutral can close *autonomously*
 is closed — no uncovered request LLP, no `neutral:fix` issue without a fix attempt,
@@ -819,6 +822,15 @@ begin. Delete the merged integration branch (local + `git push origin --delete`)
 - **Squash only at the final PR.** Task→integration merges are `--no-ff` (so
   `--is-ancestor` holds). The `integration → target` PR is the only squash.
 - **Idempotent dispatch.** Before creating any branch, check it exists; if so, resume.
+- **Dialog-proof cleanup (LLP 0082) — in every worker brief.** Never run `rm` on a
+  path built from a shell variable, and never `rm` `node_modules` links inside a
+  scratch worktree. Remove scratch worktrees with
+  `git -C <repo> worktree remove --force "<path>" ; git -C <repo> worktree prune`.
+  If a stray file outside git must go, use a literal absolute path under `/tmp`
+  and run it as its own Bash call. A "Do you want to proceed?" dialog cannot be
+  answered in this fleet; a command that would raise one wedges the worker for
+  days. The shared hook denies the variable-path form (LLP 0075), but the brief
+  says it first so the worker never tries.
 
 ## Quick start (run one tick by hand)
 
