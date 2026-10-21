@@ -28,7 +28,11 @@ omit it; resolve the current `headRefOid` once and treat that as expected.
 2. If the thread already has a valid v1 ship-risk marker for the current head,
    return it without posting another. Work from a clean checkout detached at the
    exact head. When the caller did not provide an isolated worktree, create a
-   temporary detached worktree and remove it on completion.
+   temporary detached worktree and remove it on completion with
+   `git -C <repo> worktree remove --force "<path>"` and `git worktree prune`,
+   never `rm` on a shell-variable path (LLP 0082): that raises a confirmation
+   dialog nobody in this fleet can answer. A stray scratch file goes by its
+   literal absolute path under `/tmp`, in its own Bash call.
 3. Create the report under
    `$(git rev-parse --git-common-dir)/ship-risk/pr-<N>/<full-head-sha>/risk.md`.
    Keep proof scripts and other scratch artifacts beside the report or under a

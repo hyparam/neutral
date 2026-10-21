@@ -16,6 +16,12 @@ export function waitHook(input) {
   if (/(?:^|[\s;|&()])(?:[\w./-]*\/)?(?:pkill|killall)(?=\s|$)/.test(command)) {
     return deny('Cancel only a task you started, using TaskStop with its task ID. Process-name cleanup is unavailable in the shared fleet.')
   }
+  // @ref LLP 0082#cleanup [implements] — an rm on a variable path raises an unanswerable harness dialog
+  for (const [, args] of command.matchAll(/(?:^|[\s;|&(])(?<!\b(?:git|npm|pnpm|yarn)\s+)(?:[\w./-]*\/)?rm\s+([^;|&\n]*)/g)) {
+    if (/(?:^|\s)["']?\$/.test(args)) {
+      return deny('Never rm a path built from a shell variable: the harness raises a confirmation dialog nobody can answer. Remove a scratch worktree with `git -C <repo> worktree remove --force "<path>"; git -C <repo> worktree prune`. Delete a stray file by its literal absolute path under /tmp in its own Bash call.')
+    }
+  }
   if (/(?:^|[\s;|&()])(?:[\w./-]*\/)?sleep\s/.test(command) && input.tool_input?.run_in_background === true) {
     return deny('Finish independent work, then end your turn and await the existing task completion notification. Do not create another background task just to wait. Use Monitor only for a real external condition.')
   }

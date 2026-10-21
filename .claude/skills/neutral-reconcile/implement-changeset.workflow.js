@@ -72,7 +72,7 @@ const DERIVE_READY = `In the repo at ${repo}, read the task queue from a throwaw
 1. \`cd ${repo} && git fetch --prune && git worktree prune\`.
 2. \`WT=$(mktemp -d) && git worktree add --detach "$WT" origin/${integration}\` — detached, so no branch is checked out and it never conflicts with the main checkout or another worktree.
 3. \`cd "$WT" && neutral ready ${slug} --json\` (the global \`neutral\` CLI reads the change set from this worktree's tree).
-4. Clean up: \`cd ${repo} && git worktree remove --force "$WT"\`.
+4. Clean up: \`cd ${repo} && git worktree remove --force "$WT"\`. Never \`rm\` a variable path (LLP 0082): the harness raises a confirmation dialog nobody can answer.
 
 Return EXACTLY the parsed JSON it prints — the fields ready, blocked, done, each an array of task objects {id, branch, deps, brief, complexity}. Preserve \`complexity\` verbatim if the CLI emits it (it seeds the model tier, LLP 0022); omit it when absent — never invent a rating. Do not invent or filter tasks; the CLI is ground truth. If the CLI errors (e.g. prints "no plan LLP" to stderr instead of JSON), return ready/blocked/done all empty — the workflow treats an all-empty first read as a hard failure, never as "complete".`
 
@@ -93,7 +93,7 @@ function implPrompt(t) {
    - \`cd "$WT"\` — do ALL work here, on the detached HEAD.
 3. Read the change set's plan LLP (\`llp/*-${slug}.plan.md\`) for task ${t.id}, plus the design + request LLPs. Implement EXACTLY task ${t.id}: ${t.brief ? t.brief : '(see the plan)'}. Follow the repo's own conventions (AGENTS.md / CLAUDE.md / CONTRIBUTING if present).
 4. Check for an existing PR with \`gh pr list --head ${t.branch}\`. If none exists, read the installed neutral-reconcile skill's \`references/pr-publishing.md\` (normally \`~/.claude/skills/neutral-reconcile/references/pr-publishing.md\`; in this repo it is also at \`${repo}/.claude/skills/neutral-reconcile/references/pr-publishing.md\`) and follow it end-to-end against \`origin/${integration}\`: invoke the Skill tool with \`unslop\`, run the final repo checks, commit with a message ending in a \`Task-Id: ${t.id}\` trailer, push \`HEAD:refs/heads/${t.branch}\`, derive stats, and create the PR with \`--body-file\`. The Feature or issue paragraph comes from this task's brief and change-set design; Solution describes the final diff; append \`Task-Id: ${t.id}\` to the body. If the PR already exists, resume it without rerunning publication and just run the repo checks before any new commit + push.
-5. Clean up: \`cd ${repo} && git worktree remove --force "$WT"\`.
+5. Clean up: \`cd ${repo} && git worktree remove --force "$WT"\`. Never \`rm\` a variable path (LLP 0082): the harness raises a confirmation dialog nobody can answer.
 
 Return: id="${t.id}", branch="${t.branch}", prNumber, headSha (\`git rev-parse origin/${t.branch}\`), testsPass (true ONLY if tests AND typecheck passed). If you cannot make them pass, return testsPass=false with short notes — never fake success.`
 }
@@ -113,7 +113,7 @@ For EACH task branch:
    c. content: for every file in \`git diff --name-only origin/<task-branch>~1 origin/<task-branch>\` (the task's own changes), \`git diff origin/<task-branch> HEAD -- <file>\` is EMPTY — the task's files now match the task tip on integration.
 3. Only then proceed to the next task.
 
-After all verified merges: \`git push origin HEAD:${integration}\`. Then clean up: \`cd ${repo} && git worktree remove --force "$WT"\`.
+After all verified merges: \`git push origin HEAD:${integration}\`. Then clean up: \`cd ${repo} && git worktree remove --force "$WT"\` — never \`rm\` a variable path (LLP 0082).
 
 Return: merged=[{id, sha (the merge commit)}] for each verified-and-pushed task; failed=[{id, reason}] otherwise. Never report a merge you did not verify and push — a fabricated merge corrupts the change set.`
 }

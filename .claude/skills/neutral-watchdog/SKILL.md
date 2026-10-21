@@ -54,9 +54,24 @@ tmux commands. Session `neutral-<name>` maps to `/work/<name>` and transcripts
    ```
 
    Newer than **45 minutes** (loops promise ≤30-minute heartbeats, LLP 0013) →
-   **healthy**, log and move on.
+   **healthy** unless the pane shows a dialog (next step); log and move on.
 
-2. **Pane state** (`neutral safety capture --session <session>`), only for stale sessions:
+2. **Dialog on screen — overrides freshness (LLP 0082).** Capture the pane
+   (`neutral safety capture --session <session>`) for **every** session on every
+   tick, not only stale ones. If the capture shows "Do you want to proceed?" or
+   any Yes/No menu, log `state=dialog` with the command text even when the
+   transcript is fresh: the fresh events belong to the parent loop, the dialog
+   to a background worker that has stopped and is holding a work slot. Never
+   type into the pane — you cannot know which answer is safe.
+   - **First tick:** log it. The mayor re-derives the same pane state and posts
+     a `dialog` card (LLP 0039), so a human has one cadence to answer in tmux.
+   - **Second consecutive tick** showing the same dialog: respawn (Heal, rung 2).
+     `TaskStop` only reaches tasks this session owns, so the wedged worker
+     cannot be stopped from here; replacing the loop is the rung that exists,
+     and LLP 0076 reaps the orphaned worktree.
+   - A **stale** session showing a dialog is an immediate respawn, as before.
+
+3. **Pane state** for stale sessions without a dialog:
    - **Working**: a live spinner / "esc to interrupt" footer — a long fan-out can
      be transcript-quiet while agents run. Treat as healthy-busy; do not nudge
      mid-work. If it is still stale *and* the pane is unchanged next tick, treat
@@ -68,7 +83,7 @@ tmux commands. Session `neutral-<name>` maps to `/work/<name>` and transcripts
      message. The controller clears the input line before pasting your nudge, so it
      cannot concatenate with the prefill.
    - **Interactive dialog/menu** (trust prompt, theme picker, permission ask,
-     folder-sync menu): do not guess an answer — this is a respawn case.
+     folder-sync menu): do not guess an answer — this is a respawn case (step 2).
    - **Idle prompt after an error** (e.g. `API Error` with an empty input box):
      the classic wedge — the turn died before re-arming the heartbeat.
 
@@ -89,8 +104,9 @@ tmux commands. Session `neutral-<name>` maps to `/work/<name>` and transcripts
    A submitted message alone is not evidence of recovery. The nudge preserves
    accumulated context.
 
-2. **Respawn** (nudge failed its verification, interactive dialog, or missing
-   session): read the pane tail and last transcript events, then ask the
+2. **Respawn** (nudge failed its verification, interactive dialog on a stale
+   session or on its second consecutive tick, or missing session): read the
+   pane tail and last transcript events, then ask the
    deterministic controller to replace the registered session:
 
    ```bash
@@ -114,13 +130,13 @@ next tick re-check. Never loop retries.
 One per target session:
 
 ```
-watchdog: session=<name> state=<healthy|busy|nudged|respawned|dead-daemon> last_event=<ISO> detail=<...>
+watchdog: session=<name> state=<healthy|busy|dialog|nudged|respawned|dead-daemon> last_event=<ISO> detail=<...>
 ```
 
 ## End of tick — recycle (LLP 0013/0014)
 
 Return and let `/loop` schedule the next tick. Exception: if **every** session was
-healthy this tick and your own context has grown past ~300k tokens, recycle
+healthy this tick (no `dialog` either) and your own context has grown past ~300k tokens, recycle
 instead — the tick's last act, through the safety controller (LLP 0072):
 
 ```bash
