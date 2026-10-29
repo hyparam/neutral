@@ -5,7 +5,7 @@
 **Systems:** Engine
 **Author:** Codex
 **Date:** 2026-09-07
-**Extended-by:** LLP 0076 (PID 1 packaging and orphan reaping)
+**Extended-by:** LLP 0076 (PID 1 packaging and orphan reaping), LLP 0083 (what a watchdog replace costs the safety budget; accounting decision requested)
 **Related:** 0001, 0002, 0010, 0013, 0015, 0034, 0039, 0057
 
 ## Recommendation
