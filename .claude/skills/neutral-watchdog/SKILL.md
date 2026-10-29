@@ -91,19 +91,30 @@ tmux commands. Session `neutral-<name>` maps to `/work/<name>` and transcripts
 
 2. **Respawn** (nudge failed its verification, interactive dialog, or missing
    session): read the pane tail and last transcript events, then ask the
-   deterministic controller to replace the registered session:
+   deterministic controller to replace the registered session. Issue **at most
+   one** replace per session per tick, as its own Bash call with no pipe, so
+   the controller's JSON and the exit code are both visible:
 
    ```bash
-   neutral safety replace --session <session>
+   neutral safety replace --session <session>; echo "exit=$?"
    ```
 
    This command applies to repo loops and `neutral-mayor` alike. The controller
    preserves the pinned model and headless prompt, reserves the start budget,
-   and replaces the predecessor. A hold or stale-generation error ends this
-   heal attempt; log the result and return. Only an operator can rearm a hold.
-   Verify an admitted replacement from new transcript events within ~5 min.
-   All container replacements use this gate (LLP 0072); direct tmux launches
-   bypass the protection and are forbidden.
+   and replaces the predecessor. Read the JSON it prints. If `held` is true,
+   stop: log `state=held reason=<hold.reason>` and take no further action this
+   tick. A stale-generation error likewise ends this heal attempt; log the
+   result and return. Only an operator can rearm a hold.
+
+   Every replace is a recovery event against the fleet's shared budget
+   (LLP 0072, Events and proposed limits), so a second replace inside an hour
+   holds every loop. Never re-issue a replace in the same tick because its
+   output looked incomplete or was cut off; piping through `tail` hid exactly
+   that on 2026-09-26 and 2026-10-03 (LLP 0083). Verify recovery only from a
+   new transcript event in the replaced session on the **next** tick. Log every
+   replace with its exit code and the controller's `lastHold`. All container
+   replacements use this gate (LLP 0072); direct tmux launches bypass the
+   protection and are forbidden.
 
 At most **one** heal attempt per session per tick; if a heal fails verification,
 escalate one rung (nudge → respawn) within the same tick, then log and let the
